@@ -925,27 +925,42 @@ document.getElementById('pedCompartilhar') && (document.getElementById('pedCompa
   if(!doc){ return; }
   const btn=document.getElementById('pedCompartilhar');
   const txtOrig=btn.textContent;
-  btn.textContent='Gerando imagem...';
+  btn.textContent='Gerando...';
   btn.disabled=true;
-  try{
-    if(typeof html2canvas==='undefined'){ alert('Recurso de compartilhar precisa de internet na primeira vez. Conecte-se e tente novamente.'); return; }
-    const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#ffffff'});
-    const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
-    const arquivo=new File([blob],'pedido.png',{type:'image/png'});
-    // Web Share com arquivo (celular)
-    if(navigator.canShare && navigator.canShare({files:[arquivo]})){
-      await navigator.share({files:[arquivo], title:'Pedido Setec', text:'Segue o pedido.'});
-    }else{
-      // fallback: baixar a imagem
+  function baixarImagem(canvas){
+    try{
       const a=document.createElement('a');
       a.href=canvas.toDataURL('image/png');
       a.download='pedido.png';
+      document.body.appendChild(a);
       a.click();
-      alert('Imagem do pedido baixada. Você pode anexá-la no WhatsApp ou e-mail.');
+      document.body.removeChild(a);
+      alert('Imagem do pedido salva/baixada. Abra suas Fotos ou Arquivos e envie pelo WhatsApp, e-mail, etc.');
+    }catch(err){ alert('Não foi possível gerar a imagem: '+(err&&err.message?err.message:err)); }
+  }
+  try{
+    if(typeof html2canvas==='undefined'){ alert('O compartilhar precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.'); return; }
+    const canvas=await html2canvas(doc,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+    let arquivo=null;
+    try{
+      const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+      if(blob) arquivo=new File([blob],'pedido.png',{type:'image/png'});
+    }catch(_){}
+    // tentar compartilhamento nativo com arquivo
+    if(arquivo && navigator.canShare && navigator.canShare({files:[arquivo]})){
+      try{
+        await navigator.share({files:[arquivo], title:'Pedido Setec'});
+      }catch(e){
+        // se o usuário cancelou, não faz nada; se o navegador bloqueou, baixa a imagem
+        if(e && (e.name==='AbortError')){ /* cancelou */ }
+        else { baixarImagem(canvas); }
+      }
+    }else{
+      // navegador sem suporte a compartilhar arquivo => baixa a imagem
+      baixarImagem(canvas);
     }
   }catch(e){
-    if(e && e.name==='AbortError'){ /* usuário cancelou o compartilhamento */ }
-    else { alert('Não foi possível compartilhar: '+(e&&e.message?e.message:e)); }
+    alert('Não foi possível preparar o compartilhamento: '+(e&&e.message?e.message:e));
   }finally{
     btn.textContent=txtOrig;
     btn.disabled=false;
