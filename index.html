@@ -90,6 +90,23 @@ table.mg tbody tr:hover{background:var(--leaf-soft)}
 .note{font-size:12.5px;color:var(--muted);background:var(--gold-soft);border:1px solid #e8d8b0;border-radius:10px;padding:14px 16px;line-height:1.5;margin-bottom:20px}
 .note b{color:var(--ink)}
 footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-size:12px;color:var(--muted)}
+/* itens da cotação em cards (mobile-first) */
+.cot-cards{display:flex;flex-direction:column;gap:12px}
+.ci-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.ci-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.ci-nome{font-size:15px;font-weight:700;line-height:1.3}
+.ci-fab{display:block;font-size:10.5px;font-weight:700;color:var(--leaf);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.ci-del{flex-shrink:0;background:none;border:0;color:var(--danger);font-size:18px;cursor:pointer;padding:2px 8px;border-radius:6px;line-height:1}
+.ci-del:hover{background:#fbe6e0}
+.ci-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ci-field{display:flex;flex-direction:column;gap:4px}
+.ci-field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.ci-field input{width:100%;padding:10px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:15px;font-weight:700;outline:none;font-family:inherit}
+.ci-field input:focus{border-color:var(--leaf);background:var(--leaf-soft)}
+.ci-field .cot-preco-input{border-color:var(--gold);background:var(--gold-soft);color:var(--leaf-dark)}
+.ci-field .cot-preco-input:focus{border-color:var(--leaf);background:var(--leaf-soft)}
+.ci-sug{padding:10px 0;font-size:15px;font-weight:700;color:var(--muted)}
+.ci-sub{padding:10px 0;font-size:16px;font-weight:800;color:var(--leaf-dark)}
 /* cotação */
 .cot-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:24px}
 .cot-field{display:flex;flex-direction:column;gap:6px}
@@ -225,9 +242,10 @@ table.cot tbody tr:last-child td{border-bottom:0}
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end">
           <div style="text-align:right"><div class="safra">26/27</div><div class="lbl">Safra</div></div>
         </div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:flex-end">
-          <span style="font-size:12px;opacity:.85">Consultor:</span>
-          <select id="consultorSel" style="min-width:150px;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-weight:600;font-size:13px"></select>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;justify-content:flex-end" id="userBar">
+          <span id="userInfo" style="font-size:13px;font-weight:600;color:#fff"></span>
+          <button id="btnEntrar" style="display:none;padding:7px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-weight:700;font-size:13px;cursor:pointer">Entrar</button>
+          <button id="btnSair" style="display:none;padding:7px 16px;border-radius:8px;border:0;background:#fff;color:var(--leaf-dark);font-weight:700;font-size:13px;cursor:pointer">Sair</button>
         </div>
       </div>
     </div>
@@ -320,19 +338,7 @@ table.cot tbody tr:last-child td{border-bottom:0}
       <div id="cotSug" class="cot-sug"></div>
 
       <h2 class="section-title" style="margin-top:26px">Itens da cotação</h2>
-      <div class="cot-tbl-wrap">
-        <table class="cot">
-          <thead><tr>
-            <th>Produto</th>
-            <th style="text-align:center">Qtd</th>
-            <th style="text-align:right">Preço sugerido</th>
-            <th style="text-align:right">Preço cotação</th>
-            <th style="text-align:right">Subtotal</th>
-            <th></th>
-          </tr></thead>
-          <tbody id="cotBody"></tbody>
-        </table>
-      </div>
+      <div id="cotBody" class="cot-cards"></div>
       <div class="cot-total" id="cotTotal"></div>
       <div class="cot-actions">
         <button class="btn" id="cotSalvar">Salvar cotação</button>
@@ -759,7 +765,7 @@ function addItem(i){
 function renderCot(){
   const body=document.getElementById('cotBody');
   if(!cotItens.length){
-    body.innerHTML='<tr><td colspan="6" class="cot-vazio">Nenhum item. Use a busca acima para adicionar produtos.</td></tr>';
+    body.innerHTML='<div class="cot-vazio">Nenhum item. Use a busca acima para adicionar produtos.</div>';
     document.getElementById('cotTotal').innerHTML='<span class="lbl">Total</span><span class="val">R$ 0,00</span>';
     return;
   }
@@ -767,21 +773,23 @@ function renderCot(){
   body.innerHTML=cotItens.map((it,idx)=>{
     const p=PRODUTOS[it.i];
     const sug=precoSugeridoCot(p);
-    const preco=(it.precoCot!==null&&it.precoCot!==undefined)?it.precoCot:sug;
-    const sub=(preco&&it.qtd)?preco*it.qtd:0;
+    // preço cotação NÃO é preenchido automaticamente: começa vazio (usuário digita)
+    const precoCot=(it.precoCot!==null&&it.precoCot!==undefined)?it.precoCot:null;
+    const precoUsado=(precoCot!=null)?precoCot:sug; // para o subtotal usa o cotado; se vazio, usa sugerido como referência
+    const sub=(precoUsado&&it.qtd)?precoUsado*it.qtd:0;
     total+=sub;
     if(sug&&it.qtd) totalSug+=sug*it.qtd;
-    return '<tr>'+
-      '<td><div class="cot-fabinfo">'+esc(p.fab||'')+'</div><div class="cot-nome">'+esc(p.prod||'')+'</div></td>'+
-      '<td style="text-align:center"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+String(it.qtd).replace('.',',')+'"></td>'+
-      '<td class="sug-val">'+(sug?('R$ '+brl(sug)):'—')+'</td>'+
-      '<td style="text-align:right"><input class="cot-preco-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(preco?brl(preco):'')+'" placeholder="—"></td>'+
-      '<td class="cot-sub">'+(sub?('R$ '+brl(sub)):'—')+'</td>'+
-      '<td style="text-align:center"><button class="cot-del" data-idx="'+idx+'" title="Remover">✕</button></td>'+
-    '</tr>';
+    return '<div class="ci-card">'+
+      '<div class="ci-head"><div class="ci-nome"><span class="ci-fab">'+esc(p.fab||'')+'</span>'+esc(p.prod||'')+'</div>'+
+        '<button class="ci-del" data-idx="'+idx+'" title="Remover">✕</button></div>'+
+      '<div class="ci-grid">'+
+        '<div class="ci-field"><label>Quantidade</label><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+String(it.qtd).replace('.',',')+'"></div>'+
+        '<div class="ci-field"><label>Preço sugerido</label><div class="ci-sug">'+(sug?('R$ '+brl(sug)):'—')+'</div></div>'+
+        '<div class="ci-field"><label>Preço cotação</label><input class="cot-preco-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(precoCot!=null?brl(precoCot):'')+'" placeholder="Digite o preço"></div>'+
+        '<div class="ci-field"><label>Subtotal</label><div class="ci-sub">'+(sub?('R$ '+brl(sub)):'—')+'</div></div>'+
+      '</div></div>';
   }).join('');
 
-  // total + comparação com sugerido
   const dif=totalSug-total;
   let descTxt='';
   if(totalSug>0 && Math.abs(dif)>0.005){
@@ -812,7 +820,7 @@ function renderCot(){
     };
     inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
   });
-  body.querySelectorAll('.cot-del').forEach(b=>b.onclick=()=>{
+  body.querySelectorAll('.ci-del').forEach(b=>b.onclick=()=>{
     cotItens.splice(+b.dataset.idx,1);
     renderCot();
   });
@@ -898,13 +906,19 @@ async function fazerLogout(){
 }
 
 function atualizarConsultorUI(){
-  const sel=document.getElementById('consultorSel');
-  if(!sel) return;
+  const info=document.getElementById('userInfo');
+  const btnSair=document.getElementById('btnSair');
+  const btnEntrar=document.getElementById('btnEntrar');
+  if(!info) return;
   if(usuario){
-    const rot = ehAdmin ? (usuario.nome+' (admin)') : usuario.nome;
-    sel.innerHTML='<option>'+esc(rot)+'</option><option value="__sair__">Sair</option>';
+    let papelTxt = ehAdmin ? 'Admin' : (meuPapel==='gerente' ? 'Gerente' : 'Consultor');
+    info.textContent = usuario.nome+' · '+papelTxt;
+    if(btnSair) btnSair.style.display='inline-block';
+    if(btnEntrar) btnEntrar.style.display='none';
   }else{
-    sel.innerHTML='<option value="__login__">Entrar</option>';
+    info.textContent='';
+    if(btnSair) btnSair.style.display='none';
+    if(btnEntrar) btnEntrar.style.display='inline-block';
   }
 }
 
@@ -979,10 +993,8 @@ document.getElementById('linkCadastro').onclick=e=>{ e.preventDefault(); documen
 document.getElementById('linkVoltarLogin').onclick=e=>{ e.preventDefault(); document.getElementById('loginView').style.display='block'; document.getElementById('cadastroView').style.display='none'; };
 document.getElementById('cadBtn').onclick=fazerCadastro;
 document.getElementById('cadPapel').onchange=atualizarCadGerenteUI;
-document.getElementById('consultorSel').onchange=e=>{
-  if(e.target.value==='__sair__'){ fazerLogout(); }
-  else if(e.target.value==='__login__'){ abrirLogin(); }
-};
+document.getElementById('btnSair').onclick=fazerLogout;
+document.getElementById('btnEntrar').onclick=abrirLogin;
 document.getElementById('loginBg').onclick=e=>{ if(e.target.id==='loginBg'){ if(usuario) fecharLogin(); /* sem usuário: login obrigatório, não fecha */ } };
 
 /* exige login para certas abas */
