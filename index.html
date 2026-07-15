@@ -983,7 +983,7 @@ document.getElementById('consultorSel').onchange=e=>{
   if(e.target.value==='__sair__'){ fazerLogout(); }
   else if(e.target.value==='__login__'){ abrirLogin(); }
 };
-document.getElementById('loginBg').onclick=e=>{ if(e.target.id==='loginBg'){ if(usuario) fecharLogin(); } };
+document.getElementById('loginBg').onclick=e=>{ if(e.target.id==='loginBg'){ if(usuario) fecharLogin(); /* sem usuário: login obrigatório, não fecha */ } };
 
 /* exige login para certas abas */
 function precisaLogin(){
@@ -1310,7 +1310,24 @@ document.getElementById('vGrid').onclick=()=>{state.view='grid';document.getElem
 document.getElementById('vTable').onclick=()=>{state.view='table';document.getElementById('vTable').classList.add('on');document.getElementById('vGrid').classList.remove('on');render();};
 document.querySelectorAll('.chip').forEach(ch=>ch.onclick=()=>{state.cat=ch.dataset.cat;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x.dataset.cat===state.cat));render();});
 
-function init(){ try{ buildPagSel(); buildCotPagSel(); atualizarConsultorUI(); renderCot(); render(); }catch(e){ if(window.console)console.warn(e); } }
+async function init(){
+  try{ buildPagSel(); buildCotPagSel(); atualizarConsultorUI(); renderCot(); render(); }catch(e){ if(window.console)console.warn(e); }
+  // carregar dados públicos (produtos/margens/vencimentos) do banco
+  try{ await carregarProdutos(); await carregarMargens(); render(); }catch(e){ if(window.console)console.warn('carga inicial',e); }
+  // exigir login logo ao abrir: se já houver sessão, entra direto; senão, abre o login travado
+  if(sbOk){
+    try{
+      const {data}=await sb.auth.getSession();
+      if(data && data.session && data.session.user){
+        await aoLogar(data.session.user);
+      }else{
+        abrirLogin();
+      }
+    }catch(e){ abrirLogin(); }
+  }else{
+    abrirLogin();
+  }
+}
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{init();}
 </script>
 </body>
