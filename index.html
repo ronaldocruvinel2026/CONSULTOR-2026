@@ -585,11 +585,22 @@ const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','
 
 function parseVenc(v){
   if(!v) return null;
-  const m=/^(\d{1,2})\s*\/\s*(\d{4})$/.exec(String(v).trim());
-  if(!m) return null;
-  const mes=+m[1], ano=+m[2];
-  if(mes<1||mes>12) return null;
-  return {mes,ano};
+  const s=String(v).trim();
+  // data completa: dd/mm/aaaa
+  let m=/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/.exec(s);
+  if(m){
+    const mes=+m[2], ano=+m[3];
+    if(mes<1||mes>12) return null;
+    return {mes,ano};
+  }
+  // mês/ano: mm/aaaa
+  m=/^(\d{1,2})\s*\/\s*(\d{4})$/.exec(s);
+  if(m){
+    const mes=+m[1], ano=+m[2];
+    if(mes<1||mes>12) return null;
+    return {mes,ano};
+  }
+  return null;
 }
 function mesesEntre(a_ano,a_mes,b_ano,b_mes){ return (b_ano-a_ano)*12+(b_mes-a_mes); }
 function margemDe(p){
