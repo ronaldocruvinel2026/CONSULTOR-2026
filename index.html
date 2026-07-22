@@ -150,6 +150,10 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .nome-input{width:100%;font-size:15px;font-weight:700;line-height:1.3;color:var(--ink);font-family:inherit;padding:6px 8px;border:1.5px dashed var(--gold);border-radius:8px;background:#fff;outline:none}
 .nome-input:focus{border-style:solid;border-color:var(--leaf);background:var(--leaf-soft)}
 .nome-input::placeholder{color:var(--muted);font-weight:400}
+.qtd-wrap{display:flex;gap:6px;align-items:stretch}
+.qtd-wrap .qtd-input{flex:1;min-width:0}
+.unid-fixa{display:flex;align-items:center;padding:0 10px;background:var(--leaf-soft);color:var(--leaf-dark);border-radius:9px;font-size:12.5px;font-weight:800;letter-spacing:.5px}
+.unid-sel{padding:0 6px;border:1.5px solid var(--gold);border-radius:9px;background:#fff;font-size:12.5px;font-weight:700;color:var(--leaf-dark);font-family:inherit;outline:none;cursor:pointer}
 .sug-nome{font-weight:600;font-size:14px}
 .sug-fab{font-size:11px;font-weight:700;color:var(--leaf);text-transform:uppercase}
 .sug-preco{font-weight:800;color:var(--leaf-dark);white-space:nowrap}
@@ -627,7 +631,7 @@ async function carregarProdutos(){
     if(data && data.length){
       PRODUTOS.length=0;
       data.forEach((r,i)=>{
-        PRODUTOS.push({_id:r.id, cat:r.cat, fab:r.fab, prod:r.prod, ia:r.ia||'', custo:r.preco, venc:r.vencimento||'04/2027', oculto:!!r.oculto});
+        PRODUTOS.push({_id:r.id, cat:r.cat, fab:r.fab, prod:r.prod, ia:r.ia||'', custo:r.preco, venc:r.vencimento||'04/2027', unid:r.unidade||'LT', oculto:!!r.oculto});
       });
       PRODUTOS.forEach((p,i)=>p._i=i);
       // reconstruir lista de fabricantes
@@ -955,7 +959,7 @@ function addItem(i){
 function addItemManual(nome){
   const n=(nome||'').trim();
   if(!n) return;
-  cotItens.push({i:null, manual:true, nome:n.toUpperCase(), qtd:1, precoCot:null});
+  cotItens.push({i:null, manual:true, nome:n.toUpperCase(), qtd:1, precoCot:null, unid:'UN'});
   renderCot();
 }
 function renderCot(){
@@ -976,6 +980,7 @@ function renderCot(){
     const sub=(precoUsado&&it.qtd)?precoUsado*it.qtd:0;
     total+=sub;
     if(sug&&it.qtd) totalSug+=sug*it.qtd;
+    const unidItem = manual ? (it.unid||'UN') : (p.unid||'LT');
     const cab = manual
       ? '<div class="ci-nome"><span class="ci-fab manual">Digitado</span><input class="nome-input" data-idx="'+idx+'" type="text" value="'+esc(it.nome||'')+'" placeholder="Nome do produto"></div>'
       : '<div class="ci-nome"><span class="ci-fab">'+esc(p.fab||'')+'</span>'+esc(p.prod||'')+'</div>';
@@ -983,7 +988,11 @@ function renderCot(){
       '<div class="ci-head">'+cab+
         '<button class="ci-del" data-idx="'+idx+'" title="Remover">✕</button></div>'+
       '<div class="ci-grid">'+
-        '<div class="ci-field"><label>Quantidade</label><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+String(it.qtd).replace('.',',')+'"></div>'+
+        '<div class="ci-field"><label>Quantidade</label><div class="qtd-wrap"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+String(it.qtd).replace('.',',')+'">'+
+          (manual
+            ? '<select class="unid-sel" data-idx="'+idx+'">'+['LT','KG','BLS','BAG','SC','CT','UN'].map(u=>'<option value="'+u+'"'+(unidItem===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'
+            : '<span class="unid-fixa">'+esc(unidItem)+'</span>')+
+        '</div></div>'+
         '<div class="ci-field"><label>Preço sugerido</label><div class="ci-sug">'+(sug?('R$ '+brl(sug)):'—')+'</div></div>'+
         '<div class="ci-field"><label>Preço cotação</label><input class="cot-preco-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(precoCot!=null?brl(precoCot):'')+'" placeholder="Digite o preço"></div>'+
         '<div class="ci-field"><label>Subtotal</label><div class="ci-sub">'+(sub?('R$ '+brl(sub)):'—')+'</div></div>'+
@@ -998,6 +1007,9 @@ function renderCot(){
   }
   document.getElementById('cotTotal').innerHTML=descTxt+'<span class="lbl">Total</span><span class="val">R$ '+brl(total)+'</span>';
 
+  body.querySelectorAll('.unid-sel').forEach(sel=>{
+    sel.onchange=()=>{ const idx=+sel.dataset.idx; if(cotItens[idx]) cotItens[idx].unid=sel.value; };
+  });
   body.querySelectorAll('.nome-input').forEach(inp=>{
     // atualiza o nome sem redesenhar (para não perder o foco enquanto digita)
     inp.oninput=()=>{ const idx=+inp.dataset.idx; if(cotItens[idx]) cotItens[idx].nome=inp.value; };
@@ -1271,7 +1283,7 @@ function coletarDadosCotacao(){
       const p=PRODUTOS[it.i];
       const sug=precoSugeridoCot(p);
       const preco=(it.precoCot!=null)?it.precoCot:sug;
-      return {fab:p.fab,prod:p.prod,ia:p.ia,unid:it.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:sug,preco:preco};
+      return {fab:p.fab,prod:p.prod,ia:p.ia,unid:it.unid||p.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:sug,preco:preco};
     })
   };
 }
@@ -1455,11 +1467,11 @@ function abrirCotacao(id){
   document.getElementById('cotPagSel').value=c.pagAno+'-'+c.pagMes;
   // reconstruir itens: localizar índice do produto pelo fab+prod (itens manuais voltam como digitados)
   cotItens=c.itens.map(it=>{
-    if(it.manual){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura}; }
+    if(it.manual){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN'}; }
     const idx=PRODUTOS.findIndex(p=>p.fab===it.fab&&p.prod===it.prod);
     // se o produto não existe mais na lista, mantém como item digitado para não perder o registro
-    if(idx<0){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura}; }
-    return {i:idx, qtd:it.qtd, precoCot:it.preco, cultura:it.cultura};
+    if(idx<0){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN'}; }
+    return {i:idx, qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid};
   });
   showTab('cotacao');
   renderCot();
