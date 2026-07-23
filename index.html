@@ -6,6 +6,7 @@
 <title>Setec Agro — Lista de Preços</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--ink:#12211a;--paper:#f6f4ec;--card:#fff;--leaf:#2f6b4f;--leaf-dark:#1f4a37;--leaf-soft:#e5efe7;--gold:#c8952b;--gold-soft:#f6ecd4;--line:#e2ddce;--muted:#6d7a6f;--danger:#c0392b}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -119,6 +120,17 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .usr-card.alerta{border-color:#e5b3a5;background:#fef7f4}
 .usr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
 .usr-nome{font-size:15px;font-weight:700}
+.usr-nome-input{width:100%;font-size:15px;font-weight:700;color:var(--ink);font-family:inherit;padding:6px 8px;border:1.5px dashed var(--line);border-radius:8px;background:#fff;outline:none}
+.usr-nome-input:focus{border-style:solid;border-color:var(--leaf);background:var(--leaf-soft)}
+.novo-usr{margin-bottom:16px}
+#formNovoUsr{background:var(--leaf-soft);border:1px solid var(--leaf);border-radius:12px;padding:14px;margin-top:10px}
+.nu-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.nu-f{display:flex;flex-direction:column;gap:4px}
+.nu-f label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.nu-f input,.nu-f select{width:100%;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;font-weight:600;outline:none;font-family:inherit;background:#fff}
+.nu-f input:focus,.nu-f select:focus{border-color:var(--leaf)}
+.nu-acoes{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+@media(max-width:640px){.nu-grid{grid-template-columns:1fr}}
 .usr-email{font-size:12.5px;color:var(--muted)}
 .usr-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .usr-field{display:flex;flex-direction:column;gap:4px}
@@ -223,6 +235,41 @@ table.cot tbody tr:last-child td{border-bottom:0}
 .mg-resumo b{font-size:16px;color:var(--leaf-dark)}
 .mg-resumo .mg-destaque{border:1.5px solid currentColor}
 @media print{ .mg-painel{display:none!important} }
+/* ===== carteira de pedidos ===== */
+.cart-import{background:var(--gold-soft);border:1px solid var(--gold);border-radius:12px;padding:14px;margin-bottom:16px}
+.cart-import .ci-titulo{font-size:14px;font-weight:800;color:var(--leaf-dark);margin-bottom:4px}
+.cart-import .ci-desc{font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.45}
+.cart-import input[type=file]{font-size:13px;font-family:inherit}
+.ci-status{margin-top:8px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.ci-status.ok{color:var(--leaf-dark)} .ci-status.err{color:#b23c1c}
+.cart-resumo{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.cart-resumo>div{flex:1;min-width:130px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.cart-resumo span{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.cart-resumo b{font-size:16px;color:var(--leaf-dark)}
+.cart-resumo .cart-destaque{border-color:var(--gold);background:var(--gold-soft)}
+.cart-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(31,74,55,.05)}
+.cart-card.is-aberto{border-left:4px solid var(--gold)}
+.cart-card.is-ok{border-left:4px solid var(--leaf)}
+.cart-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.cart-cli{font-size:15px;font-weight:800;color:var(--ink)}
+.cart-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.cart-vend{font-size:11.5px;color:var(--leaf);font-weight:700;margin-top:3px}
+.cart-vals{text-align:right}
+.cv-tot{font-size:16px;font-weight:800;color:var(--leaf-dark)}
+.cv-saldo{font-size:12px;font-weight:800;color:#8a6d1f;background:var(--gold-soft);padding:2px 8px;border-radius:6px;margin-top:3px;display:inline-block}
+.cv-ok{font-size:12px;font-weight:800;color:var(--leaf-dark);background:var(--leaf-soft);padding:2px 8px;border-radius:6px;margin-top:3px;display:inline-block}
+.cart-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cart-tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px}
+.cart-tbl th{background:var(--bg);color:var(--muted);text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:800;white-space:nowrap}
+.cart-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
+.cart-tbl td.c,.cart-tbl th.c{text-align:center}
+.cart-tbl td.r,.cart-tbl th.r{text-align:right;white-space:nowrap}
+.sld-aberto{color:#8a6d1f;font-weight:800}
+.sld-ok{color:var(--muted)}
+.ci-fabmini{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.prog{width:52px;height:6px;background:var(--line);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}
+.prog-in{height:100%;background:var(--leaf);border-radius:4px}
+.prog-t{font-size:10.5px;color:var(--muted);margin-left:5px;font-weight:700}
 .mc-filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .mc-fbtn{background:#fff;border:1.5px solid var(--line);color:var(--muted);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
 .mc-fbtn:hover{border-color:var(--leaf);color:var(--leaf-dark)}
@@ -331,6 +378,7 @@ body.login-aberto{overflow:hidden}
       <button class="tab on" id="tabList">Lista de Preços</button>
       <button class="tab" id="tabCotacao">Nova Cotação</button>
       <button class="tab" id="tabMinhas">Minhas Cotações</button>
+      <button class="tab" id="tabCarteira">Carteira</button>
       <button class="tab" id="tabMargem" style="display:none">Margens & Vencimentos</button>
       <button class="tab" id="tabUsuarios" style="display:none">Usuários</button>
     </div>
@@ -562,11 +610,63 @@ body.login-aberto{overflow:hidden}
   </div>
 </div>
 
+<div class="panel" id="carteiraView">
+  <main>
+    <div class="wrap">
+      <h2 class="section-title">Carteira de pedidos</h2>
+      <div class="section-sub" id="cartSub">Pedidos em aberto importados do SIAGRI.</div>
+
+      <div id="cartImport" class="cart-import" style="display:none">
+        <div class="ci-titulo">Importar carteira (somente administrador)</div>
+        <div class="ci-desc">Exporte no SIAGRI o relatório <b>Fatu41901 - Carteira Pedidos de Venda - Analítico</b> em Excel e selecione o arquivo abaixo. A importação substitui a carteira anterior.</div>
+        <input type="file" id="cartFile" accept=".xlsx,.xls">
+        <div id="cartStatus" class="ci-status"></div>
+      </div>
+
+      <div class="ctrl-row" style="margin-bottom:12px">
+        <div class="search" style="flex:1;min-width:220px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="cartBusca" type="text" placeholder="Buscar cliente, fazenda, produto ou nº do pedido...">
+        </div>
+        <select id="cartVendFiltro" style="min-width:180px"><option value="ALL">Todos os vendedores</option></select>
+      </div>
+      <div class="mc-filtros">
+        <button class="mc-fbtn on" data-cf="aberto">Em aberto</button>
+        <button class="mc-fbtn" data-cf="todos">Todos</button>
+        <button class="mc-fbtn" data-cf="entregue">Entregues</button>
+      </div>
+
+      <div id="cartResumo" class="cart-resumo"></div>
+      <div id="cartList" class="mc-list"></div>
+    </div>
+  </main>
+</div>
+
 <div class="panel" id="usuariosView">
   <main>
     <div class="wrap">
       <h2 class="section-title">Usuários cadastrados</h2>
       <div class="section-sub">Gerencie papéis e carteiras. Visível apenas para o administrador.</div>
+
+      <div class="novo-usr">
+        <button class="btn" id="btnAbrirNovoUsr">+ Cadastrar novo usuário</button>
+        <div id="formNovoUsr" style="display:none">
+          <div class="nu-grid">
+            <div class="nu-f"><label>Nome</label><input id="nuNome" type="text" placeholder="Igual ao SIAGRI, se for consultor"></div>
+            <div class="nu-f"><label>E-mail</label><input id="nuEmail" type="email" placeholder="email@setecagro.com"></div>
+            <div class="nu-f"><label>Senha inicial</label><input id="nuSenha" type="password" placeholder="Mínimo 6 caracteres"></div>
+            <div class="nu-f"><label>Função</label><select id="nuPapel"><option value="consultor">Consultor</option><option value="gerente">Gerente</option><option value="admin">Admin</option></select></div>
+            <div class="nu-f" id="nuGerWrap"><label>Carteira (gerente)</label><select id="nuGerente"><option value="">Selecione...</option></select></div>
+            <div class="nu-f"><label>Loja / Filial</label><select id="nuLoja"></select></div>
+            <div class="nu-f"><label>Vendedor no SIAGRI</label><input id="nuSiagri" type="text" placeholder="Deixe vazio p/ usar o nome"></div>
+          </div>
+          <div class="nu-acoes">
+            <button class="btn" id="nuCriar">Criar usuário</button>
+            <button class="btn ghost" id="nuCancelar">Cancelar</button>
+          </div>
+          <div id="nuMsg" class="ci-status"></div>
+        </div>
+      </div>
       <div class="ctrl-row" style="margin-bottom:12px">
         <div class="search" style="flex:1">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -1168,11 +1268,12 @@ async function aoLogar(user){
   meuGerenteId=null;
   if(sbOk){
     try{
-      const {data:perf}=await sb.from('perfis').select('papel,gerente_id,nome,loja').eq('id',user.id).maybeSingle();
+      const {data:perf}=await sb.from('perfis').select('papel,gerente_id,nome,loja,vendedor_siagri').eq('id',user.id).maybeSingle();
       if(perf){
         if(!ehAdmin) meuPapel=perf.papel||'consultor';
         meuGerenteId=perf.gerente_id||null;
         meuLoja=perf.loja||LOJA_PADRAO;
+        meuVendedorSiagri=perf.vendedor_siagri||null;
         if(perf.nome) usuario.nome=perf.nome;
       }
     }catch(e){ console.warn('perfil load',e); }
@@ -1185,6 +1286,7 @@ async function aoLogar(user){
   // Margens & Vencimentos: apenas admin (consultor/gerente não acessam)
   const tm=document.getElementById('tabMargem'); if(tm) tm.style.display = ehAdmin ? 'inline-block' : 'none';
   await carregarCotacoes();
+  await carregarCarteira();
   renderMinhas && renderMinhas();
   // redesenha a lista de preços com as permissões do usuário (esconde produtos ocultos)
   try{ render(); }catch(e){}
@@ -1712,7 +1814,7 @@ async function renderUsuarios(){
     const gerOpts='<option value="">— sem gerente —</option>'+gerentes.filter(g=>g.id!==p.id).map(g=>'<option value="'+g.id+'"'+(g.id===p.gerente_id?' selected':'')+'>'+esc(g.nome||'')+'</option>').join('');
     const semCarteira = (p.papel==='consultor' && !p.gerente_id);
     return '<div class="usr-card'+(semCarteira?' alerta':'')+'">'+
-      '<div class="usr-top"><div><div class="usr-nome">'+esc(p.nome||'—')+'</div><div class="usr-email">'+esc(p.email||'')+'</div></div>'+
+      '<div class="usr-top"><div style="flex:1;min-width:180px"><input class="usr-nome-input" data-id="'+p.id+'" type="text" value="'+esc(p.nome||'')+'" placeholder="Nome do usuário"><div class="usr-email">'+esc(p.email||'')+'</div></div>'+
         '<button class="mc-btn danger" data-delusr="'+p.id+'">Excluir</button></div>'+
       '<div class="usr-grid">'+
         '<div class="usr-field"><label>Função</label><select class="usr-papel" data-id="'+p.id+'">'+
@@ -1724,6 +1826,7 @@ async function renderUsuarios(){
         '<div class="usr-field"><label>Loja / Filial</label><select class="usr-loja" data-id="'+p.id+'">'+
           Object.keys(LOJAS).map(k=>'<option value="'+k+'"'+((p.loja||LOJA_PADRAO)===k?' selected':'')+'>'+esc(LOJAS[k].nome)+'</option>').join('')+
         '</select></div>'+
+        '<div class="usr-field"><label>Vendedor no SIAGRI</label><input class="usr-siagri" data-id="'+p.id+'" type="text" value="'+esc(p.vendedor_siagri||'')+'" placeholder="Nome exato do SIAGRI"></div>'+
       '</div>'+
       (semCarteira?'<div class="usr-aviso">⚠ Consultor sem gerente designado</div>':'')+
     '</div>';
@@ -1741,9 +1844,25 @@ async function renderUsuarios(){
   list.querySelectorAll('.usr-gerente').forEach(sel=>sel.onchange=async ()=>{
     await salvarPerfil(sel.dataset.id, {gerente_id: sel.value||null});
   });
+  // editar nome
+  list.querySelectorAll('.usr-nome-input').forEach(inp=>{
+    inp.onchange=async ()=>{
+      const novo=(inp.value||'').trim();
+      if(!novo){ alert('O nome não pode ficar em branco.'); await renderUsuarios(); return; }
+      await salvarPerfil(inp.dataset.id, {nome: novo});
+      // se editei a mim mesmo, atualiza o cabeçalho
+      if(usuario && inp.dataset.id===usuario.id){ usuario.nome=novo; atualizarConsultorUI(); }
+    };
+    inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
+  });
   // editar loja
   list.querySelectorAll('.usr-loja').forEach(sel=>sel.onchange=async ()=>{
     await salvarPerfil(sel.dataset.id, {loja: sel.value});
+  });
+  // vincular vendedor do SIAGRI (para a carteira)
+  list.querySelectorAll('.usr-siagri').forEach(inp=>{
+    inp.onchange=async ()=>{ await salvarPerfil(inp.dataset.id, {vendedor_siagri: (inp.value||'').trim()||null}); };
+    inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
   });
   // excluir
   list.querySelectorAll('[data-delusr]').forEach(b=>b.onclick=async ()=>{
@@ -1770,10 +1889,370 @@ async function salvarPerfil(id, patch){
 }
 document.getElementById('usrBusca').oninput=e=>{ usrBuscaTxt=e.target.value; renderUsuarios(); };
 
+/* ===================== CARTEIRA DE PEDIDOS (SIAGRI) ===================== */
+let carteira=[];           // linhas (itens) da carteira
+let cartFiltro='aberto';
+let cartBusca='';
+let cartVend='ALL';
+let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
+
+async function carregarCarteira(){
+  if(!sbOk) return;
+  try{
+    const {data,error}=await sb.from('carteira').select('*').order('cliente_nome');
+    if(error) throw error;
+    carteira=data||[];
+  }catch(e){ console.warn('carregarCarteira',e); carteira=[]; }
+}
+
+// quem pode ver o quê: consultor vê a dele; gerente e admin veem todos
+function carteiraVisivel(){
+  if(ehAdmin || meuPapel==='gerente') return carteira;
+  const meu=norm(meuVendedorSiagri||usuario&&usuario.nome||'');
+  if(!meu) return [];
+  return carteira.filter(l=>norm(l.vendedor_nome||'')===meu);
+}
+
+function renderCarteira(){
+  const list=document.getElementById('cartList');
+  const sub=document.getElementById('cartSub');
+  const resumo=document.getElementById('cartResumo');
+  if(!usuario){ list.innerHTML='<div class="mc-vazio">Faça login para ver a carteira.</div>'; return; }
+
+  // painel de importação só para admin
+  const imp=document.getElementById('cartImport');
+  if(imp) imp.style.display = ehAdmin ? 'block' : 'none';
+
+  let linhas=carteiraVisivel();
+  sub.textContent = (ehAdmin||meuPapel==='gerente')
+    ? 'Carteira de todos os vendedores.'
+    : ('Sua carteira de pedidos em aberto.');
+
+  if(!carteira.length){
+    list.innerHTML='<div class="mc-vazio">Nenhuma carteira importada ainda.'+(ehAdmin?' Use o campo acima para importar o Excel do SIAGRI.':'')+'</div>';
+    resumo.innerHTML='';
+    return;
+  }
+
+  // preencher filtro de vendedores (só para quem vê todos)
+  const selV=document.getElementById('cartVendFiltro');
+  if(ehAdmin||meuPapel==='gerente'){
+    selV.style.display='';
+    const vends=[...new Set(carteira.map(l=>l.vendedor_nome).filter(Boolean))].sort();
+    if(selV.options.length!==vends.length+1){
+      selV.innerHTML='<option value="ALL">Todos os vendedores</option>'+vends.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+      selV.value=cartVend;
+    }
+    if(cartVend!=='ALL') linhas=linhas.filter(l=>l.vendedor_nome===cartVend);
+  }else{ selV.style.display='none'; }
+
+  // filtro de situação
+  if(cartFiltro==='aberto') linhas=linhas.filter(l=>(+l.saldo||0)>0);
+  else if(cartFiltro==='entregue') linhas=linhas.filter(l=>(+l.saldo||0)<=0);
+
+  // busca
+  const q=norm(cartBusca);
+  if(q){
+    linhas=linhas.filter(l=>
+      norm(l.cliente_nome||'').includes(q)||norm(l.propriedade||'').includes(q)||
+      norm(l.produto_desc||'').includes(q)||String(l.pedido||'').includes(q)||
+      norm(l.vendedor_nome||'').includes(q)||norm(l.municipio||'').includes(q)
+    );
+  }
+
+  // resumo
+  const totPedido=linhas.reduce((s,l)=>s+(+l.qtd_pedida||0)*(+l.vlr_unitario||0),0);
+  const totSaldo=linhas.reduce((s,l)=>s+(+l.saldo||0)*(+l.vlr_unitario||0),0);
+  const nPedidos=new Set(linhas.map(l=>l.pedido)).size;
+  const nClientes=new Set(linhas.map(l=>l.cliente_nome)).size;
+  resumo.innerHTML=
+    '<div><span>Pedidos</span><b>'+nPedidos+'</b></div>'+
+    '<div><span>Clientes</span><b>'+nClientes+'</b></div>'+
+    '<div><span>Valor total</span><b>R$ '+brl(totPedido)+'</b></div>'+
+    '<div class="cart-destaque"><span>Saldo a entregar</span><b>R$ '+brl(totSaldo)+'</b></div>';
+
+  if(!linhas.length){ list.innerHTML='<div class="mc-vazio">Nenhum resultado para esse filtro.</div>'; return; }
+
+  // agrupar por pedido
+  const grupos={};
+  linhas.forEach(l=>{
+    const k=l.pedido||'—';
+    if(!grupos[k]) grupos[k]={ped:l, itens:[]};
+    grupos[k].itens.push(l);
+  });
+
+  list.innerHTML=Object.keys(grupos).map(k=>{
+    const g=grupos[k], p=g.ped;
+    const vTot=g.itens.reduce((s,i)=>s+(+i.qtd_pedida||0)*(+i.vlr_unitario||0),0);
+    const vSaldo=g.itens.reduce((s,i)=>s+(+i.saldo||0)*(+i.vlr_unitario||0),0);
+    const aberto=vSaldo>0.005;
+    const dt=p.emissao?new Date(p.emissao+'T00:00:00').toLocaleDateString('pt-BR'):'';
+    const venc=p.vencimento?new Date(p.vencimento+'T00:00:00').toLocaleDateString('pt-BR'):'';
+    const itensHtml=g.itens.map(i=>{
+      const s=+i.saldo||0, ped=+i.qtd_pedida||0, ent=+i.qtd_entregue||0;
+      const pct=ped>0?Math.min(100,Math.round(ent/ped*100)):0;
+      return '<tr>'+
+        '<td>'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
+        '<td class="c">'+esc(i.unidade||'')+'</td>'+
+        '<td class="r">'+brl(ped)+'</td>'+
+        '<td class="r">'+brl(ent)+'</td>'+
+        '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'">'+brl(s)+'</td>'+
+        '<td class="r">'+brl(+i.vlr_unitario||0)+'</td>'+
+        '<td class="r">'+brl(ped*(+i.vlr_unitario||0))+'</td>'+
+        '<td class="c"><div class="prog"><div class="prog-in" style="width:'+pct+'%"></div></div><span class="prog-t">'+pct+'%</span></td>'+
+      '</tr>';
+    }).join('');
+    return '<div class="cart-card '+(aberto?'is-aberto':'is-ok')+'">'+
+      '<div class="cart-head">'+
+        '<div><div class="cart-cli">'+esc(p.cliente_nome||'')+'</div>'+
+        '<div class="cart-meta">Pedido <b>'+esc(p.pedido||'')+'</b>'+(p.propriedade?(' · '+esc(p.propriedade)):'')+(dt?(' · Emissão '+dt):'')+(venc?(' · Venc. '+venc):'')+'</div>'+
+        ((ehAdmin||meuPapel==='gerente')?('<div class="cart-vend">Vendedor: '+esc(p.vendedor_nome||'—')+'</div>'):'')+'</div>'+
+        '<div class="cart-vals"><div class="cv-tot">R$ '+brl(vTot)+'</div>'+
+          (aberto?('<div class="cv-saldo">Saldo R$ '+brl(vSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
+      '</div>'+
+      '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Total</th><th class="c">Entrega</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
+    '</div>';
+  }).join('');
+}
+
+/* filtros e busca */
+document.querySelectorAll('#carteiraView .mc-fbtn').forEach(b=>{
+  b.onclick=()=>{ cartFiltro=b.dataset.cf; document.querySelectorAll('#carteiraView .mc-fbtn').forEach(x=>x.classList.toggle('on',x===b)); renderCarteira(); };
+});
+document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
+document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
+
+/* ---- importação do Excel do SIAGRI (só admin) ---- */
+function cartStatus(tipo,msg){
+  const el=document.getElementById('cartStatus');
+  if(!el) return;
+  el.className='ci-status '+(tipo||'');
+  el.textContent=msg||'';
+}
+// localiza coluna pelo texto do cabeçalho (tolerante a variações)
+function acharCol(heads, termos, exato){
+  for(let i=0;i<heads.length;i++){
+    const h=norm(heads[i]||'');
+    for(const t of termos){
+      const tn=norm(t);
+      if(exato ? h===tn : h.includes(tn)) return i;
+    }
+  }
+  return -1;
+}
+function dataISO(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date && !isNaN(v.getTime())){
+    return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  }
+  const s=String(v).trim();
+  let m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s);
+  if(m) return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  const d=new Date(s);
+  if(!isNaN(d.getTime())) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return null;
+}
+function numero(v){
+  if(v==null||v==='') return 0;
+  if(typeof v==='number') return v;
+  let s=String(v).replace(/[^0-9.,-]/g,'');
+  if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s=s.replace(/\./g,'').replace(',','.');
+  else if(s.indexOf(',')>-1) s=s.replace(',','.');
+  const n=parseFloat(s);
+  return isNaN(n)?0:n;
+}
+
+document.getElementById('cartFile') && (document.getElementById('cartFile').onchange=function(ev){
+  const f=ev.target.files&&ev.target.files[0];
+  if(!f) return;
+  if(!ehAdmin){ cartStatus('err','Apenas o administrador pode importar a carteira.'); return; }
+  if(typeof XLSX==='undefined'){ cartStatus('err','Leitor de planilha não carregou. Verifique a conexão e recarregue a página.'); return; }
+  cartStatus('','Lendo planilha...');
+  const rd=new FileReader();
+  rd.onload=async function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      if(!rows||rows.length<2){ cartStatus('err','Planilha vazia ou sem dados.'); return; }
+      const H=rows[0].map(x=>x==null?'':String(x));
+
+      // mapeamento das colunas do relatório Fatu41901
+      const c={
+        loja:      acharCol(H,['codigo da loja']),
+        pedido:    acharCol(H,['codigo do pedido de venda']),
+        serie:     acharCol(H,['serie do pedido']),
+        origem:    acharCol(H,['numero do pedido de origem']),
+        cliCod:    acharCol(H,['codigo do parceiro']),
+        cliNome:   acharCol(H,['razao social'],true),
+        emissao:   acharCol(H,['data de emissao','replica da data de emissao']),
+        vencimento:acharCol(H,['data do vencimento do pedido']),
+        vendCod:   acharCol(H,['codigo do vendedor 1','codigo do vendedor']),
+        vendNome:  acharCol(H,['nome do vendedor 1','nome do vendedor']),
+        condicao:  acharCol(H,['descricao da condicao de venda']),
+        grupo:     acharCol(H,['descricao do grupo do produto']),
+        prodCod:   acharCol(H,['codigo do produto']),
+        prodDesc:  acharCol(H,['descricao do produto']),
+        fabricante:acharCol(H,['fabricante'],true),
+        unidade:   acharCol(H,['unidade de medida']),
+        unitario:  acharCol(H,['valor unitario do item']),
+        pedida:    acharCol(H,['quantidade pedida']),
+        entregue:  acharCol(H,['quantidade faturada']),   // = "Entregue" do relatório em PDF
+        perdida:   acharCol(H,['quantidade perdida']),
+        saldo:     acharCol(H,['saldo'],true),
+        margem:    acharCol(H,['% margem de lucro'],true),
+        propriedade:acharCol(H,['descricao da propriedade']),
+        municipio: acharCol(H,['municipio da propriedade']),
+        ciclo:     acharCol(H,['descricao ciclo','descricao do ciclo'])
+      };
+      if(c.pedido<0||c.prodDesc<0){ cartStatus('err','Não reconheci o formato. Use o relatório Fatu41901 exportado em Excel, sem alterar os cabeçalhos.'); return; }
+
+      const V=(row,i)=> (i>=0 && row[i]!=null) ? row[i] : null;
+      const registros=[];
+      for(let r=1;r<rows.length;r++){
+        const row=rows[r]; if(!row) continue;
+        const ped=V(row,c.pedido), pd=V(row,c.prodDesc);
+        if(!ped && !pd) continue;
+        registros.push({
+          loja:String(V(row,c.loja)||''),
+          pedido:String(ped||''),
+          pedido_origem:String(V(row,c.origem)||''),
+          serie:String(V(row,c.serie)||''),
+          emissao:dataISO(V(row,c.emissao)),
+          vencimento:dataISO(V(row,c.vencimento)),
+          cliente_cod:String(V(row,c.cliCod)||''),
+          cliente_nome:String(V(row,c.cliNome)||''),
+          propriedade:String(V(row,c.propriedade)||''),
+          municipio:String(V(row,c.municipio)||''),
+          vendedor_cod:String(V(row,c.vendCod)||''),
+          vendedor_nome:String(V(row,c.vendNome)||''),
+          condicao:String(V(row,c.condicao)||''),
+          grupo:String(V(row,c.grupo)||''),
+          produto_cod:String(V(row,c.prodCod)||''),
+          produto_desc:String(pd||''),
+          fabricante:String(V(row,c.fabricante)||''),
+          unidade:String(V(row,c.unidade)||''),
+          vlr_unitario:numero(V(row,c.unitario)),
+          qtd_pedida:numero(V(row,c.pedida)),
+          qtd_entregue:numero(V(row,c.entregue)),
+          qtd_perdida:numero(V(row,c.perdida)),
+          saldo:numero(V(row,c.saldo)),
+          total:numero(V(row,c.pedida))*numero(V(row,c.unitario)),
+          margem_pct:numero(V(row,c.margem)),
+          ciclo:String(V(row,c.ciclo)||'')
+        });
+      }
+      if(!registros.length){ cartStatus('err','Nenhuma linha de produto encontrada na planilha.'); return; }
+
+      cartStatus('','Enviando '+registros.length+' item(ns) para a nuvem...');
+      // substitui a carteira anterior
+      const del=await sb.from('carteira').delete().neq('id',-1);
+      if(del.error) throw del.error;
+      const LOTE=200;
+      let enviados=0;
+      for(let i=0;i<registros.length;i+=LOTE){
+        const fatia=registros.slice(i,i+LOTE);
+        const {error}=await sb.from('carteira').insert(fatia);
+        if(error) throw error;
+        enviados+=fatia.length;
+        cartStatus('','Enviando... ('+enviados+'/'+registros.length+')');
+      }
+      await carregarCarteira();
+      renderCarteira();
+      const nPed=new Set(registros.map(x=>x.pedido)).size;
+      cartStatus('ok','✓ Carteira atualizada: '+registros.length+' itens em '+nPed+' pedido(s).');
+      ev.target.value='';
+    }catch(err){
+      cartStatus('err','Erro ao importar: '+(err&&err.message?err.message:err));
+    }
+  };
+  rd.readAsArrayBuffer(f);
+});
+
+/* ---- cadastro de usuário pelo painel de Usuários (só admin) ---- */
+function nuMsg(tipo,txt){
+  const el=document.getElementById('nuMsg');
+  if(el){ el.className='ci-status '+(tipo||''); el.textContent=txt||''; }
+}
+function nuAtualizaGerenteUI(){
+  const w=document.getElementById('nuGerWrap');
+  if(w) w.style.display = (document.getElementById('nuPapel').value==='consultor') ? 'block' : 'none';
+}
+function nuPreencherListas(){
+  // lojas
+  const sl=document.getElementById('nuLoja');
+  if(sl && !sl.options.length){
+    sl.innerHTML=Object.keys(LOJAS).map(k=>'<option value="'+k+'">'+esc(LOJAS[k].nome)+'</option>').join('');
+  }
+  // gerentes (a partir dos perfis já carregados)
+  const sg=document.getElementById('nuGerente');
+  if(sg){
+    const gers=perfisCache.filter(p=>p.papel==='gerente');
+    sg.innerHTML='<option value="">Selecione o gerente...</option>'+gers.map(g=>'<option value="'+g.id+'">'+esc(g.nome||'')+'</option>').join('');
+  }
+}
+document.getElementById('btnAbrirNovoUsr') && (document.getElementById('btnAbrirNovoUsr').onclick=()=>{
+  const f=document.getElementById('formNovoUsr');
+  const aberto=f.style.display!=='none';
+  f.style.display=aberto?'none':'block';
+  document.getElementById('btnAbrirNovoUsr').textContent=aberto?'+ Cadastrar novo usuário':'− Fechar cadastro';
+  if(!aberto){ nuPreencherListas(); nuAtualizaGerenteUI(); nuMsg('',''); }
+});
+document.getElementById('nuCancelar') && (document.getElementById('nuCancelar').onclick=()=>{
+  document.getElementById('formNovoUsr').style.display='none';
+  document.getElementById('btnAbrirNovoUsr').textContent='+ Cadastrar novo usuário';
+});
+document.getElementById('nuPapel') && (document.getElementById('nuPapel').onchange=nuAtualizaGerenteUI);
+
+document.getElementById('nuCriar') && (document.getElementById('nuCriar').onclick=async ()=>{
+  if(!ehAdmin){ nuMsg('err','Apenas o administrador pode cadastrar usuários.'); return; }
+  const nome=(document.getElementById('nuNome').value||'').trim();
+  const email=(document.getElementById('nuEmail').value||'').trim();
+  const senha=document.getElementById('nuSenha').value||'';
+  const papel=document.getElementById('nuPapel').value;
+  const gerenteId=document.getElementById('nuGerente').value;
+  const loja=document.getElementById('nuLoja').value;
+  const siagri=(document.getElementById('nuSiagri').value||'').trim();
+  if(!nome||!email||!senha){ nuMsg('err','Preencha nome, e-mail e senha.'); return; }
+  if(senha.length<6){ nuMsg('err','A senha deve ter ao menos 6 caracteres.'); return; }
+  if(papel==='consultor' && !gerenteId){ nuMsg('err','Selecione a carteira (gerente) do consultor.'); return; }
+  if(!adminCreds){ nuMsg('err','Por segurança, saia e entre novamente antes de cadastrar (preciso revalidar seu acesso de admin).'); return; }
+  const btn=document.getElementById('nuCriar'); const t=btn.textContent;
+  btn.textContent='Criando...'; btn.disabled=true;
+  try{
+    const {data,error}=await sb.auth.signUp({email:email,password:senha,options:{data:{nome:nome}}});
+    if(error) throw error;
+    const novoId=data.user?data.user.id:null;
+    if(novoId){
+      const perfil={id:novoId, nome:nome, email:email, papel:papel,
+        gerente_id:(papel==='consultor'?gerenteId:null), loja:loja,
+        vendedor_siagri: siagri||null};
+      const {error:e2}=await sb.from('perfis').upsert([perfil]);
+      if(e2) console.warn('perfil',e2);
+    }
+    // o signUp troca a sessão: volta para o admin
+    try{ await sb.auth.signOut(); }catch(_){}
+    const {data:re,error:er}=await sb.auth.signInWithPassword({email:adminCreds.email,password:adminCreds.senha});
+    if(er) throw new Error('Usuário criado, mas não consegui reconectar seu acesso. Faça login novamente.');
+    await aoLogar(re.user);
+    document.getElementById('nuNome').value='';
+    document.getElementById('nuEmail').value='';
+    document.getElementById('nuSenha').value='';
+    document.getElementById('nuSiagri').value='';
+    showTab('usuarios');
+    await renderUsuarios();
+    nuMsg('ok','✓ Usuário '+nome+' criado como '+papel+'.');
+  }catch(e){
+    nuMsg('err','Erro: '+(e&&e.message?e.message:e));
+  }finally{ btn.textContent=t; btn.disabled=false; }
+});
+
 function showTab(t){
   // proteção: abas restritas só para admin
   if((t==='margem'||t==='usuarios') && !ehAdmin){ t='list'; }
-  ['list','cotacao','minhas','margem','usuarios'].forEach(x=>{
+  ['list','cotacao','minhas','margem','usuarios','carteira'].forEach(x=>{
     const v=document.getElementById(x==='list'?'listView':x+'View');
     if(v){ if(x==='list') v.style.display=(t==='list')?'block':'none'; else v.classList.toggle('on',t===x); }
   });
@@ -1782,15 +2261,18 @@ function showTab(t){
   document.getElementById('tabMinhas').classList.toggle('on',t==='minhas');
   document.getElementById('tabMargem').classList.toggle('on',t==='margem');
   const tu=document.getElementById('tabUsuarios'); if(tu) tu.classList.toggle('on',t==='usuarios');
+  const tc=document.getElementById('tabCarteira'); if(tc) tc.classList.toggle('on',t==='carteira');
   if(t==='margem'){renderMargemFab();renderMargemProd();}
   if(t==='cotacao'){renderCot();}
   if(t==='minhas'){renderMinhas();}
   if(t==='usuarios'){renderUsuarios();}
+  if(t==='carteira'){renderCarteira();}
 }
 document.getElementById('tabList').onclick=()=>showTab('list');
 document.getElementById('tabCotacao').onclick=()=>showTab('cotacao');
 document.getElementById('tabMargem').onclick=()=>showTab('margem');
 document.getElementById('tabUsuarios').onclick=()=>showTab('usuarios');
+document.getElementById('tabCarteira').onclick=()=>showTab('carteira');
 document.getElementById('q').oninput=e=>{state.q=e.target.value;render();};
 document.getElementById('fabSel').onchange=e=>{state.fab=e.target.value;render();};
 document.getElementById('sortSel').onchange=e=>{state.sort=e.target.value;render();};
