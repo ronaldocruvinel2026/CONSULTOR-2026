@@ -108,6 +108,14 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .ci-del{flex-shrink:0;background:none;border:0;color:var(--danger);font-size:18px;cursor:pointer;padding:2px 8px;border-radius:6px;line-height:1}
 .ci-del:hover{background:#fbe6e0}
 .ci-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ci-obs{margin-top:10px}
+.ci-obs label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.obs-input{width:100%;padding:8px 10px;border:1.5px dashed var(--line);border-radius:8px;font-size:13px;outline:none;font-family:inherit;background:#fff;box-sizing:border-box}
+.obs-input:focus{border-style:solid;border-color:var(--leaf);background:var(--leaf-soft)}
+.obs-input::placeholder{color:var(--muted);font-weight:400}
+.fab-add{position:fixed;right:20px;bottom:24px;z-index:60;display:none;align-items:center;gap:6px;background:var(--leaf-dark);color:#fff;border:0;border-radius:30px;padding:14px 22px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 6px 20px rgba(31,74,55,.35);transition:all .15s}
+.fab-add:hover{background:var(--leaf);transform:translateY(-2px);box-shadow:0 8px 24px rgba(31,74,55,.45)}
+.fab-add:active{transform:translateY(0)}
 .ci-grid>.ci-field{min-width:0}
 .ci-field{display:flex;flex-direction:column;gap:4px}
 .ci-field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -387,6 +395,7 @@ body.login-aberto{overflow:hidden}
 .ped-doc table.itens{width:100%;border-collapse:collapse;border:2px solid #000;border-top:0}
 .ped-doc table.itens th{background:#e0e0e0;border:1.2px solid #000;padding:4px;font-size:10px;text-transform:uppercase;color:#000}
 .ped-doc table.itens td{border:1.2px solid #000;padding:5px 6px;height:22px;font-size:11px}
+.ped-doc table.itens td .it-obs{font-size:9.5px;font-style:italic;color:#333;margin-top:2px;font-weight:normal}
 .ped-doc td.c{text-align:center}.ped-doc td.r{text-align:right}
 .ped-doc .tot{display:flex;justify-content:flex-end;border:2px solid #111;border-top:0;padding:8px 12px;font-size:15px;font-weight:800;gap:12px}
 .ped-doc .obs{border:2px solid #111;border-top:0;padding:8px 12px;font-size:9.5px;color:#333;line-height:1.4}
@@ -531,6 +540,7 @@ body.login-aberto{overflow:hidden}
       </div>
     </div>
   </main>
+  <button class="fab-add" id="fabAdd" title="Adicionar outro produto">+ Adicionar produto</button>
 </div>
 
 <div class="panel" id="minhasView">
@@ -1284,7 +1294,9 @@ function renderCot(){
         '<div class="ci-field"><label>Preço sugerido</label><div class="ci-sug">'+(sug?('R$ '+brl(sug)):'—')+'</div></div>'+
         '<div class="ci-field"><label>Preço cotação</label><input class="cot-preco-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(precoCot!=null?brl(precoCot):'')+'" placeholder="Digite o preço"></div>'+
         '<div class="ci-field"><label>Subtotal</label><div class="ci-sub">'+(sub?('R$ '+brl(sub)):'—')+'</div></div>'+
-      '</div></div>';
+      '</div>'+
+      '<div class="ci-obs"><label>Observação (opcional — aparece no pedido)</label><input class="obs-input" data-idx="'+idx+'" type="text" value="'+esc(it.obs||'')+'" placeholder="Ex: entrega parcial, bonificação, prazo especial..."></div>'+
+      '</div>';
   }).join('');
 
   const dif=totalSug-total;
@@ -1295,6 +1307,9 @@ function renderCot(){
   }
   document.getElementById('cotTotal').innerHTML=descTxt+'<span class="lbl">Total</span><span class="val">R$ '+brl(total)+'</span>';
 
+  body.querySelectorAll('.obs-input').forEach(inp=>{
+    inp.oninput=()=>{ const idx=+inp.dataset.idx; if(cotItens[idx]) cotItens[idx].obs=inp.value; };
+  });
   body.querySelectorAll('.unid-sel').forEach(sel=>{
     sel.onchange=()=>{ const idx=+sel.dataset.idx; if(cotItens[idx]) cotItens[idx].unid=sel.value; };
   });
@@ -1569,12 +1584,12 @@ function coletarDadosCotacao(){
     pagAno:cotPagAno, pagMes:cotPagMes,
     itens:cotItens.map(it=>{
       if(it.manual){
-        return {fab:'',prod:it.nome||'',ia:'',unid:it.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:null,preco:(it.precoCot!=null?it.precoCot:null),manual:true};
+        return {fab:'',prod:it.nome||'',ia:'',unid:it.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:null,preco:(it.precoCot!=null?it.precoCot:null),obs:it.obs||'',manual:true};
       }
       const p=PRODUTOS[it.i];
       const sug=precoSugeridoCot(p);
       const preco=(it.precoCot!=null)?it.precoCot:sug;
-      return {fab:p.fab,prod:p.prod,ia:p.ia,unid:it.unid||p.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:sug,preco:preco};
+      return {fab:p.fab,prod:p.prod,ia:p.ia,unid:it.unid||p.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:sug,preco:preco,obs:it.obs||''};
     })
   };
 }
@@ -1794,11 +1809,11 @@ function abrirCotacao(id){
   document.getElementById('cotPagSel').value=c.pagAno+'-'+c.pagMes;
   // reconstruir itens: localizar índice do produto pelo fab+prod (itens manuais voltam como digitados)
   cotItens=c.itens.map(it=>{
-    if(it.manual){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN'}; }
+    if(it.manual){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN', obs:it.obs||''}; }
     const idx=PRODUTOS.findIndex(p=>p.fab===it.fab&&p.prod===it.prod);
     // se o produto não existe mais na lista, mantém como item digitado para não perder o registro
-    if(idx<0){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN'}; }
-    return {i:idx, qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid};
+    if(idx<0){ return {i:null, manual:true, nome:it.prod||'', qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid||'UN', obs:it.obs||''}; }
+    return {i:idx, qtd:it.qtd, precoCot:it.preco, cultura:it.cultura, unid:it.unid, obs:it.obs||''};
   });
   showTab('cotacao');
   renderCot();
@@ -1832,7 +1847,9 @@ function imprimirPedido(id, modoCotacao){
   const dataStr=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
   const linhas=c.itens.map(it=>{
     const sub=(it.preco&&it.qtd)?it.preco*it.qtd:0;
-    return '<tr><td class="c">'+(it.qtd||'')+'</td><td class="c">'+esc(it.unid||'LT')+'</td><td>'+esc(it.prod||'')+'</td><td>'+esc(it.cultura||'')+'</td><td class="r">'+(it.preco?brl(it.preco):'')+'</td><td class="r">'+(sub?brl(sub):'')+'</td></tr>';
+    const obs=(it.obs||'').trim();
+    const nomeCell=esc(it.prod||'')+(obs?('<div class="it-obs">'+esc(obs)+'</div>'):'');
+    return '<tr><td class="c">'+(it.qtd||'')+'</td><td class="c">'+esc(it.unid||'LT')+'</td><td>'+nomeCell+'</td><td>'+esc(it.cultura||'')+'</td><td class="r">'+(it.preco?brl(it.preco):'')+'</td><td class="r">'+(sub?brl(sub):'')+'</td></tr>';
   }).join('');
   // linhas vazias para preencher a folha A4 inteira (sem espaços em branco embaixo)
   let vazias=''; const min=18; for(let k=c.itens.length;k<min;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
@@ -2010,7 +2027,14 @@ document.getElementById('pedWhats') && (document.getElementById('pedWhats').oncl
   });
 });
 
-document.getElementById('tabMinhas').onclick=()=>{ if(precisaLogin()){ showTab('minhas'); } };
+document.getElementById('fabAdd') && (document.getElementById('fabAdd').onclick=()=>{
+  const busca=document.getElementById('cotBusca');
+  if(busca){
+    busca.scrollIntoView({behavior:'smooth', block:'center'});
+    setTimeout(()=>busca.focus(), 300);
+  }
+});
+document.getElementById('tabMinhas') && (document.getElementById('tabMinhas').onclick=()=>{ if(precisaLogin()){ showTab('minhas'); } });
 document.getElementById('cotImprimir') && (document.getElementById('cotImprimir').onclick=()=>window.print());
 
 /* ===== ADMINISTRAÇÃO DE USUÁRIOS (só admin) ===== */
@@ -2718,6 +2742,9 @@ function showTab(t){
   if(t==='usuarios'){renderUsuarios();}
   if(t==='carteira'){renderCarteira();}
   if(t==='estoque'){renderEstoque();}
+  // botão flutuante "+ Adicionar produto" só na aba de cotação
+  const fab=document.getElementById('fabAdd');
+  if(fab) fab.style.display=(t==='cotacao')?'flex':'none';
 }
 document.getElementById('tabList').onclick=()=>showTab('list');
 document.getElementById('tabCotacao').onclick=()=>showTab('cotacao');
