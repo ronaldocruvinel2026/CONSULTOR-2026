@@ -1989,19 +1989,24 @@ document.getElementById('pedSalvar') && (document.getElementById('pedSalvar').on
   });
 });
 
-// WHATSAPP: no celular tenta compartilhar direto; senão salva o PDF e abre a conversa com a mensagem
+// WHATSAPP:
+//  - celular: abre o compartilhar já com o PDF anexado (caminho mais confiável)
+//  - computador: salva o PDF e abre o WhatsApp Web com a mensagem pronta p/ anexar
 document.getElementById('pedWhats') && (document.getElementById('pedWhats').onclick=()=>{
   const btn=document.getElementById('pedWhats');
+  const ehCelular = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   comBotao(btn,'Gerando...',async ()=>{
     const {blob, arquivo, nomeArq, titulo}=await gerarPdfPedido();
-    if(arquivo && navigator.share && (!navigator.canShare || navigator.canShare({files:[arquivo]}))){
+    // no celular, tenta o compartilhamento nativo com o arquivo anexado
+    if(ehCelular && arquivo && navigator.share && (!navigator.canShare || navigator.canShare({files:[arquivo]}))){
       try{ await navigator.share({files:[arquivo], title:titulo}); return; }
       catch(e){ if(e && e.name==='AbortError'){ return; } }
     }
+    // no computador (ou se o compartilhar não estiver disponível): salva e abre o WhatsApp Web
     salvarPdfArquivo(blob, nomeArq);
     const tipo = pedidoAtualCotacao ? 'a cotação' : 'o pedido';
-    const msg = 'Olá! Segue '+tipo+(pedidoAtualCli?(' de '+pedidoAtualCli):'')+'. (O PDF "'+nomeArq+'" foi salvo no seu dispositivo — anexe-o aqui na conversa.)';
-    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+    const msg = 'Olá! Segue '+tipo+(pedidoAtualCli?(' de '+pedidoAtualCli):'')+'. (O PDF "'+nomeArq+'" foi salvo no seu computador — anexe-o aqui na conversa.)';
+    window.open('https://web.whatsapp.com/send?text='+encodeURIComponent(msg),'_blank');
   });
 });
 
