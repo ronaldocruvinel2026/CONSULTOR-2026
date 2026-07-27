@@ -735,6 +735,30 @@ body.login-aberto{overflow:hidden}
       <div id="cartList" class="mc-list"></div>
     </div>
   </main>
+
+  <!-- barra fixa que aparece ao selecionar itens -->
+  <div class="fat-barra" id="fatBarra">
+    <span id="fatBarraTxt">0 item(ns) selecionado(s)</span>
+    <div class="fat-barra-btns">
+      <button class="btn ghost" id="fatLimpar">Limpar</button>
+      <button class="btn" id="fatSolicitar">Solicitar faturamento</button>
+    </div>
+  </div>
+
+  <!-- modal de solicitação de faturamento -->
+  <div class="fat-modal-bg" id="fatModal">
+    <div class="fat-modal">
+      <div class="fat-modal-head">
+        <div class="fat-modal-tit">Solicitação de Faturamento</div>
+        <button class="fat-modal-x" id="fatFechar">✕</button>
+      </div>
+      <div class="fat-modal-body" id="fatModalBody"></div>
+      <div class="fat-modal-foot">
+        <button class="btn ghost" id="fatCancelar">Cancelar</button>
+        <button class="btn" id="fatCompartilhar">Compartilhar</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="panel" id="estoqueView">
@@ -863,6 +887,11 @@ const LOJAS={
 };
 const LOJA_PADRAO='UBERLANDIA';
 function dadosLoja(chave){ return LOJAS[chave] || LOJAS[LOJA_PADRAO]; }
+// logo em base64 reaproveitado do cabeçalho da página (para os documentos PDF)
+const LOGO_PED=(function(){
+  const img=document.querySelector('.logo-badge img, .login-logo img, img.ped-logo');
+  return img ? img.getAttribute('src') : '';
+})();
 let TAXA=0.01; // 1% ao mês
 
 /* ================= SUPABASE ================= */
@@ -2255,46 +2284,266 @@ function renderCarteira(){
 
   if(!linhas.length){ list.innerHTML='<div class="mc-vazio">Nenhum resultado para esse filtro.</div>'; return; }
 
-  // agrupar por pedido
-  const grupos={};
+  // dá um id estável a cada linha (para a seleção de faturamento)
+  linhas.forEach(l=>{ if(!l._selId) l._selId = (l.id!=null?('db'+l.id):('k'+[l.pedido,l.produto_cod,l.produto_desc,l.loja].join('|'))); });
+
+  // agrupar: cliente -> pedidos -> itens
+  const porCliente={};
   linhas.forEach(l=>{
-    const k=l.pedido||'—';
-    if(!grupos[k]) grupos[k]={ped:l, itens:[]};
-    grupos[k].itens.push(l);
+    const ck=l.cliente_nome||'—';
+    if(!porCliente[ck]) porCliente[ck]={cliente:l, pedidos:{}};
+    const pk=l.pedido||'—';
+    if(!porCliente[ck].pedidos[pk]) porCliente[ck].pedidos[pk]={ped:l, itens:[]};
+    porCliente[ck].pedidos[pk].itens.push(l);
   });
 
-  list.innerHTML=Object.keys(grupos).map(k=>{
-    const g=grupos[k], p=g.ped;
-    const vTot=g.itens.reduce((s,i)=>s+(+i.qtd_pedida||0)*(+i.vlr_unitario||0),0);
-    const vSaldo=g.itens.reduce((s,i)=>s+(+i.saldo||0)*(+i.vlr_unitario||0),0);
-    const aberto=vSaldo>0.005;
-    const dt=p.emissao?new Date(p.emissao+'T00:00:00').toLocaleDateString('pt-BR'):'';
-    const venc=p.vencimento?new Date(p.vencimento+'T00:00:00').toLocaleDateString('pt-BR'):'';
-    const itensHtml=g.itens.map(i=>{
-      const s=+i.saldo||0, ped=+i.qtd_pedida||0, ent=+i.qtd_entregue||0;
-      const pct=ped>0?Math.min(100,Math.round(ent/ped*100)):0;
-      return '<tr>'+
-        '<td>'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
-        '<td class="c">'+esc(i.unidade||'')+'</td>'+
-        '<td class="r">'+brl(ped)+'</td>'+
-        '<td class="r">'+brl(ent)+'</td>'+
-        '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'">'+brl(s)+'</td>'+
-        '<td class="r">'+brl(+i.vlr_unitario||0)+'</td>'+
-        '<td class="r">'+brl(ped*(+i.vlr_unitario||0))+'</td>'+
-        '<td class="c"><div class="prog"><div class="prog-in" style="width:'+pct+'%"></div></div><span class="prog-t">'+pct+'%</span></td>'+
-      '</tr>';
+  list.innerHTML=Object.keys(porCliente).map(ck=>{
+    const cli=porCliente[ck];
+    const pedidos=cli.pedidos;
+    // totais do cliente (todos os pedidos)
+    let cTot=0, cSaldo=0;
+    Object.values(pedidos).forEach(g=>g.itens.forEach(i=>{
+      cTot+=(+i.qtd_pedida||0)*(+i.vlr_unitario||0);
+      cSaldo+=(+i.saldo||0)*(+i.vlr_unitario||0);
+    }));
+    const clientAberto=cSaldo>0.005;
+
+    const pedidosHtml=Object.keys(pedidos).map(pk=>{
+      const g=pedidos[pk], p=g.ped;
+      const vTot=g.itens.reduce((s,i)=>s+(+i.qtd_pedida||0)*(+i.vlr_unitario||0),0);
+      const vSaldo=g.itens.reduce((s,i)=>s+(+i.saldo||0)*(+i.vlr_unitario||0),0);
+      const aberto=vSaldo>0.005;
+      const dt=p.emissao?new Date(p.emissao+'T00:00:00').toLocaleDateString('pt-BR'):'';
+      const venc=p.vencimento?new Date(p.vencimento+'T00:00:00').toLocaleDateString('pt-BR'):'';
+      const itensHtml=g.itens.map(i=>{
+        const s=+i.saldo||0, ped=+i.qtd_pedida||0, ent=+i.qtd_entregue||0;
+        const pct=ped>0?Math.min(100,Math.round(ent/ped*100)):0;
+        const podeSel = s>0; // só itens com saldo em aberto podem ser faturados
+        const check = podeSel
+          ? '<input type="checkbox" class="fat-check" data-sel="'+i._selId+'"'+(fatSel[i._selId]?' checked':'')+'>'
+          : '';
+        return '<tr'+(podeSel?' class="fat-linha" data-sel="'+i._selId+'"':'')+'>'+
+          '<td class="c fat-cel">'+check+'</td>'+
+          '<td>'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
+          '<td class="c">'+esc(i.unidade||'')+'</td>'+
+          '<td class="r">'+brl(ped)+'</td>'+
+          '<td class="r">'+brl(ent)+'</td>'+
+          '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'">'+brl(s)+'</td>'+
+          '<td class="r">'+brl(+i.vlr_unitario||0)+'</td>'+
+          '<td class="r">'+brl(ped*(+i.vlr_unitario||0))+'</td>'+
+          '<td class="c"><div class="prog"><div class="prog-in" style="width:'+pct+'%"></div></div><span class="prog-t">'+pct+'%</span></td>'+
+        '</tr>';
+      }).join('');
+      return '<div class="cart-pedido '+(aberto?'is-aberto':'is-ok')+'">'+
+        '<div class="cart-pedhead">'+
+          '<div class="cart-meta">Pedido <b>'+esc(p.pedido||'')+'</b>'+(p.loja?(' · <span class="cart-loja">'+esc(nomeEmpresa(+p.loja)||('Loja '+p.loja))+'</span>'):'')+(p.propriedade?(' · '+esc(p.propriedade)):'')+(dt?(' · Emissão '+dt):'')+(venc?(' · Venc. '+venc):'')+'</div>'+
+          '<div class="cart-vals"><div class="cv-tot">R$ '+brl(vTot)+'</div>'+
+            (aberto?('<div class="cv-saldo">Saldo R$ '+brl(vSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
+        '</div>'+
+        '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th class="c"></th><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Total</th><th class="c">Entrega</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
+      '</div>';
     }).join('');
-    return '<div class="cart-card '+(aberto?'is-aberto':'is-ok')+'">'+
-      '<div class="cart-head">'+
-        '<div><div class="cart-cli">'+esc(p.cliente_nome||'')+'</div>'+
-        '<div class="cart-meta">Pedido <b>'+esc(p.pedido||'')+'</b>'+(p.loja?(' · <span class="cart-loja">'+esc(nomeEmpresa(+p.loja)||('Loja '+p.loja))+'</span>'):'')+(p.propriedade?(' · '+esc(p.propriedade)):'')+(dt?(' · Emissão '+dt):'')+(venc?(' · Venc. '+venc):'')+'</div>'+
-        ((ehAdmin||meuPapel==='gerente')?('<div class="cart-vend">Vendedor: '+esc(p.vendedor_nome||'—')+'</div>'):'')+'</div>'+
-        '<div class="cart-vals"><div class="cv-tot">R$ '+brl(vTot)+'</div>'+
-          (aberto?('<div class="cv-saldo">Saldo R$ '+brl(vSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
+
+    return '<div class="cart-cliente '+(clientAberto?'is-aberto':'is-ok')+'">'+
+      '<div class="cart-clihead">'+
+        '<div><div class="cart-cli">'+esc(cli.cliente.cliente_nome||'')+'</div>'+
+        ((ehAdmin||meuPapel==='gerente')?('<div class="cart-vend">Vendedor: '+esc(cli.cliente.vendedor_nome||'—')+'</div>'):'')+
+        '<div class="cart-climeta">'+Object.keys(pedidos).length+' pedido(s)</div></div>'+
+        '<div class="cart-vals"><div class="cv-tot">R$ '+brl(cTot)+'</div>'+
+          (clientAberto?('<div class="cv-saldo">Saldo R$ '+brl(cSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
       '</div>'+
-      '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Total</th><th class="c">Entrega</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
+      pedidosHtml+
     '</div>';
   }).join('');
+
+  // liga os checkboxes e as linhas clicáveis
+  list.querySelectorAll('.fat-check').forEach(chk=>{
+    chk.onclick=(e)=>{ e.stopPropagation(); toggleFat(chk.dataset.sel, chk.checked); };
+  });
+  list.querySelectorAll('.fat-linha').forEach(tr=>{
+    tr.onclick=()=>{ const id=tr.dataset.sel; const novo=!fatSel[id]; toggleFat(id, novo); const c=tr.querySelector('.fat-check'); if(c) c.checked=novo; };
+  });
+  atualizarBarraFat();
+}
+
+// ===== seleção para Solicitação de Faturamento =====
+let fatSel={};          // _selId -> true
+let fatQtd={};          // _selId -> quantidade solicitada (editável)
+function toggleFat(id, on){
+  if(on){ fatSel[id]=true; } else { delete fatSel[id]; delete fatQtd[id]; }
+  atualizarBarraFat();
+}
+function linhaPorSelId(id){
+  return carteira.find(l=>l._selId===id) || carteiraVisivel().find(l=>l._selId===id);
+}
+function atualizarBarraFat(){
+  const barra=document.getElementById('fatBarra');
+  if(!barra) return;
+  const ids=Object.keys(fatSel);
+  if(!ids.length){ barra.classList.remove('on'); return; }
+  // confere se é tudo do mesmo cliente
+  const clientes=new Set(ids.map(id=>{ const l=linhaPorSelId(id); return l?l.cliente_nome:null; }));
+  const cont=document.getElementById('fatBarraTxt');
+  if(cont) cont.textContent=ids.length+' item(ns) selecionado(s)'+(clientes.size>1?' — atenção: clientes diferentes':'');
+  barra.classList.add('on');
+}
+
+// itens selecionados, resolvidos em objetos completos
+function fatItensSelecionados(){
+  return Object.keys(fatSel).map(id=>linhaPorSelId(id)).filter(Boolean);
+}
+
+// abre o modal com a lista de itens e a quantidade editável
+function abrirFatModal(){
+  const itens=fatItensSelecionados();
+  if(!itens.length) return;
+  const clientes=[...new Set(itens.map(l=>l.cliente_nome||'—'))];
+  const body=document.getElementById('fatModalBody');
+  let aviso='';
+  if(clientes.length>1){
+    aviso='<div class="fat-aviso">⚠ Você selecionou itens de clientes diferentes ('+clientes.map(esc).join(', ')+'). Normalmente a solicitação é de um cliente por vez.</div>';
+  }
+  const linhas=itens.map(l=>{
+    const saldo=+l.saldo||0;
+    // quantidade solicitada começa igual ao saldo, salvo edição anterior
+    const qs = (fatQtd[l._selId]!=null) ? fatQtd[l._selId] : saldo;
+    fatQtd[l._selId]=qs;
+    return '<div class="fat-item">'+
+      '<div class="fat-item-top">'+
+        '<div class="fat-item-nome">'+esc(l.produto_desc||'')+(l.fabricante?'<span class="ci-fabmini">'+esc(l.fabricante)+'</span>':'')+'</div>'+
+        '<button class="fat-item-x" data-rem="'+l._selId+'" title="Tirar da solicitação">✕</button>'+
+      '</div>'+
+      '<div class="fat-item-meta">Pedido <b>'+esc(l.pedido||'')+'</b>'+(l.loja?(' · '+esc(nomeEmpresa(+l.loja)||('Loja '+l.loja))):'')+' · Saldo disponível: '+brl(saldo)+' '+esc(l.unidade||'')+'</div>'+
+      '<div class="fat-item-qtd"><label>Quantidade a faturar</label>'+
+        '<input class="fat-qtd-input" data-sel="'+l._selId+'" type="text" inputmode="decimal" value="'+String(qs).replace('.',',')+'"><span class="fat-unid">'+esc(l.unidade||'')+'</span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  body.innerHTML=aviso+linhas;
+  // editar quantidade
+  body.querySelectorAll('.fat-qtd-input').forEach(inp=>{
+    inp.onchange=()=>{
+      const v=parseFloat(inp.value.replace(/\./g,'').replace(',','.'));
+      fatQtd[inp.dataset.sel]=(!isNaN(v)&&v>0)?v:0;
+    };
+  });
+  // remover item de dentro do modal
+  body.querySelectorAll('.fat-item-x').forEach(b=>{
+    b.onclick=()=>{ toggleFat(b.dataset.rem, false); const c=document.querySelector('.fat-check[data-sel="'+b.dataset.rem+'"]'); if(c) c.checked=false; if(!Object.keys(fatSel).length){ fecharFatModal(); } else abrirFatModal(); };
+  });
+  document.getElementById('fatModal').classList.add('on');
+}
+function fecharFatModal(){ document.getElementById('fatModal').classList.remove('on'); }
+
+// barra: botão "Solicitar faturamento" abre o modal
+document.getElementById('fatSolicitar') && (document.getElementById('fatSolicitar').onclick=()=>{
+  if(!Object.keys(fatSel).length){ alert('Selecione ao menos um item marcando a caixinha na carteira.'); return; }
+  abrirFatModal();
+});
+// barra: botão "Limpar" desmarca tudo
+document.getElementById('fatLimpar') && (document.getElementById('fatLimpar').onclick=()=>{
+  fatSel={}; fatQtd={};
+  document.querySelectorAll('.fat-check').forEach(c=>c.checked=false);
+  atualizarBarraFat();
+});
+// modal: botão "Cancelar" e "✕" só fecham
+document.getElementById('fatCancelar') && (document.getElementById('fatCancelar').onclick=()=>fecharFatModal());
+document.getElementById('fatFechar') && (document.getElementById('fatFechar').onclick=()=>fecharFatModal());
+// modal: botão "Compartilhar" gera o PDF e abre o menu do sistema (mesmo esquema do pedido)
+document.getElementById('fatCompartilhar') && (document.getElementById('fatCompartilhar').onclick=()=>{
+  const btn=document.getElementById('fatCompartilhar');
+  // valida quantidades
+  const itens=fatItensSelecionados();
+  const semQtd=itens.some(l=>{ const q=fatQtd[l._selId]; return !q || q<=0; });
+  if(semQtd){ alert('Há um item com quantidade zerada. Ajuste a quantidade a faturar ou remova o item.'); return; }
+  comBotao(btn,'Gerando...',async ()=>{
+    const {blob, arquivo, nomeArq, titulo}=await gerarPdfFaturamento();
+    let compartilhou=false;
+    const ehCelular=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(ehCelular && arquivo && navigator.share && (!navigator.canShare || navigator.canShare({files:[arquivo]}))){
+      try{ await navigator.share({files:[arquivo], title:titulo}); compartilhou=true; }
+      catch(e){ if(e && e.name==='AbortError') return; }
+    }
+    if(!compartilhou){ salvarPdfArquivo(blob, nomeArq); }
+  });
+});
+
+// gera o documento de Solicitação de Faturamento e compartilha (mesmo esquema do pedido)
+async function gerarPdfFaturamento(){
+  const itens=fatItensSelecionados();
+  if(!itens.length) throw new Error('Nenhum item selecionado.');
+  if(typeof html2canvas==='undefined' || !window.jspdf){
+    throw new Error('O PDF precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.');
+  }
+  const cliente=itens[0].cliente_nome||'—';
+  const consultor=itens[0].vendedor_nome||(perfil&&perfil.nome)||'';
+  const dt=new Date();
+  const dataStr=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+  // agrupa por pedido para exibir organizado
+  const porPed={};
+  itens.forEach(l=>{ const k=l.pedido||'—'; (porPed[k]=porPed[k]||[]).push(l); });
+  const linhasTbl=Object.keys(porPed).map(pk=>{
+    const g=porPed[pk];
+    const emp=g[0].loja?(nomeEmpresa(+g[0].loja)||('Loja '+g[0].loja)):'';
+    return g.map((l,idx)=>{
+      const qs=fatQtd[l._selId]!=null?fatQtd[l._selId]:(+l.saldo||0);
+      return '<tr>'+
+        '<td class="c">'+(idx===0?esc(String(pk)):'')+'</td>'+
+        '<td>'+(idx===0?esc(emp):'')+'</td>'+
+        '<td>'+esc(l.produto_desc||'')+'</td>'+
+        '<td class="c">'+esc(l.unidade||'')+'</td>'+
+        '<td class="r">'+brl(+l.saldo||0)+'</td>'+
+        '<td class="r"><b>'+brl(qs)+'</b></td>'+
+      '</tr>';
+    }).join('');
+  }).join('');
+  const nItens=itens.length;
+  const minL=12; let vazias='';
+  for(let k=nItens;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
+  const L=dadosLoja(itens[0].loja ? nomeLojaCod(itens[0].loja) : (meuLoja||LOJA_PADRAO));
+  const logo=LOGO_PED;
+  const doc=
+    '<div class="ped-doc" id="fatDoc">'+
+    '<div class="top">'+
+      '<div class="brand"><img class="ped-logo" src="'+logo+'"><div class="subb">'+esc(L.nome)+'</div></div>'+
+      '<div class="emp"><div class="t">'+esc(L.razao)+'</div><div class="l">'+esc(L.endereco)+'<br>'+esc(L.cidade)+'<br>'+esc(L.fone)+'<br>'+esc(L.doc)+'</div></div>'+
+      '<div class="ped"><div class="lbl fat-lbl">SOLICITAÇÃO<br>DE FATURAMENTO</div><div class="data">Data: '+dataStr+'</div></div>'+
+    '</div>'+
+    '<div class="cad"><div class="h">DADOS DA SOLICITAÇÃO</div>'+
+      '<div class="row"><div class="cell" style="flex:2"><b>Cliente</b>'+esc(cliente)+'</div><div class="cell" style="flex:1"><b>Consultor</b>'+esc(consultor)+'</div><div class="cell" style="flex:1"><b>Itens</b>'+nItens+'</div></div>'+
+    '</div>'+
+    '<div class="itens-wrap"><table class="itens"><thead><tr><th>Pedido</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
+    '<div class="obs">Solicito o faturamento dos itens acima relacionados, conforme as quantidades indicadas na coluna "Qtd. a faturar". Documento gerado pelo sistema de cotações Setec Agro.'+
+      '<div class="assin">Assinatura do Consultor</div></div>'+
+    '</div>';
+  // renderiza num container oculto
+  let cont=document.getElementById('fatRender');
+  if(!cont){ cont=document.createElement('div'); cont.id='fatRender'; cont.style.cssText='position:fixed;left:-99999px;top:0;width:794px;background:#fff'; document.body.appendChild(cont); }
+  cont.innerHTML=doc;
+  const alvo=cont.querySelector('.ped-doc');
+  const canvas=await html2canvas(alvo,{scale:1.7,backgroundColor:'#ffffff',useCORS:true});
+  const img=canvas.toDataURL('image/jpeg',0.86);
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight(), margem=8;
+  pdf.addImage(img,'JPEG',margem,margem,pageW-margem*2,pageH-margem*2);
+  cont.innerHTML='';
+  const nomeArq='Solicitação Faturamento '+((cliente||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,40))+'.pdf';
+  const blob=pdf.output('blob');
+  let arquivo=null; try{ arquivo=new File([blob],nomeArq,{type:'application/pdf'}); }catch(_){}
+  return {blob, arquivo, nomeArq, titulo:'Solicitação de Faturamento - '+cliente};
+}
+
+// helper: código da loja -> chave de dadosLoja (reaproveita LOJAS por cidade)
+function nomeLojaCod(cod){
+  const n=nomeEmpresa(+cod)||'';
+  const semEmpresa=n.replace(/^JSM\s+|^SETEC\s+/i,'').trim().toUpperCase();
+  if(semEmpresa.includes('UBER')) return 'UBERLANDIA';
+  if(semEmpresa.includes('ARAGUARI')) return 'ARAGUARI';
+  if(semEmpresa.includes('CAPIN')) return 'CAPINOPOLIS';
+  if(semEmpresa.includes('PONTE')) return 'NOVA PONTE';
+  if(semEmpresa.includes('BARRAC')) return 'UBERLANDIA';
+  return LOJA_PADRAO;
 }
 
 /* filtros e busca */
