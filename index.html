@@ -367,7 +367,9 @@ body.login-aberto{overflow:hidden}
 .ped-bg{display:none;position:fixed;inset:0;background:rgba(18,33,26,.6);z-index:300;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto}
 .ped-bg.on{display:flex}
 .ped-modal{background:#fff;border-radius:12px;max-width:900px;width:100%;margin:16px 0;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
-.ped-bar{display:flex;gap:10px;padding:14px 16px;background:var(--leaf-soft);border-bottom:1px solid var(--line);position:sticky;top:0}
+.ped-bar{display:flex;gap:10px;padding:14px 16px;background:var(--leaf-soft);border-bottom:1px solid var(--line);position:sticky;top:0;flex-wrap:wrap}
+.ped-bar .btn.zap{background:#25D366;border-color:#25D366;color:#fff}
+.ped-bar .btn.zap:hover{background:#1eb955;border-color:#1eb955}
 .ped-scroll{padding:18px;overflow-x:auto}
 .ped-doc{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;min-width:720px;width:100%;aspect-ratio:194/281;display:flex;flex-direction:column;box-sizing:border-box}
 /* a tabela de itens cresce para ocupar toda a altura livre da folha */
@@ -658,7 +660,9 @@ body.login-aberto{overflow:hidden}
 <div class="ped-bg" id="pedBg">
   <div class="ped-modal">
     <div class="ped-bar no-print">
-      <button class="btn" id="pedCompartilhar">Compartilhar PDF</button>
+      <button class="btn" id="pedCompartilhar">Compartilhar</button>
+      <button class="btn" id="pedSalvar">Salvar no dispositivo</button>
+      <button class="btn zap" id="pedWhats">WhatsApp</button>
       <button class="btn ghost" id="pedFechar">Fechar</button>
     </div>
     <div class="ped-scroll"><div id="pedContent"></div></div>
@@ -1902,14 +1906,13 @@ function imprimirPedido(id, modoCotacao){
 }
 document.getElementById('pedFechar') && (document.getElementById('pedFechar').onclick=()=>document.getElementById('pedBg').classList.remove('on'));
 let pedidoAtualNum=null, pedidoAtualCli='', pedidoAtualCotacao=false;
-document.getElementById('pedCompartilhar') && (document.getElementById('pedCompartilhar').onclick=async ()=>{
+// gera o PDF do pedido/cotação e devolve {blob, arquivo, nomeArq, titulo}
+async function gerarPdfPedido(){
   const doc=document.getElementById('pedContent').querySelector('.ped-doc');
-  if(!doc){ return; }
-  const btn=document.getElementById('pedCompartilhar');
-  const txtOrig=btn.textContent;
-  btn.textContent='Gerando PDF...';
-  btn.disabled=true;
-  // nome do arquivo: pedido usa o número; cotação usa o nome do cliente
+  if(!doc) throw new Error('Documento não encontrado.');
+  if(typeof html2canvas==='undefined' || !window.jspdf){
+    throw new Error('O PDF precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.');
+  }
   const numTxt = pedidoAtualNum ? String(pedidoAtualNum) : 'sem-numero';
   const cliLimpo = (pedidoAtualCli||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,40);
   const nomeArq = pedidoAtualCotacao
@@ -1918,71 +1921,88 @@ document.getElementById('pedCompartilhar') && (document.getElementById('pedCompa
   const titulo = pedidoAtualCotacao
     ? ('Cotação'+(pedidoAtualCli?(' - '+pedidoAtualCli):''))
     : ('Pedido '+numTxt+(pedidoAtualCli?(' - '+pedidoAtualCli):''));
-  function baixarPdf(blob){
-    try{
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url; a.download=nomeArq;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),3000);
-      alert('Seu navegador não permitiu o compartilhamento direto, então o PDF "'+nomeArq+'" foi salvo.\n\nDica: no iPhone, abrindo o sistema pelo Safari o botão compartilha direto no WhatsApp, e-mail etc.');
-    }catch(err){ alert('Não foi possível salvar o PDF: '+(err&&err.message?err.message:err)); }
-  }
-  try{
-    if(typeof html2canvas==='undefined' || !window.jspdf){
-      alert('O compartilhar precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.');
-      return;
-    }
-    // captura o documento do pedido (o painel de margem fica de fora)
-    // escala 1.7 mantém o texto nítido e deixa o PDF leve (facilita o envio por WhatsApp)
-    const canvas=await html2canvas(doc,{scale:1.7,backgroundColor:'#ffffff',useCORS:true});
-    const img=canvas.toDataURL('image/jpeg',0.86);
-    // monta o PDF em A4 retrato, ajustando a imagem à largura da página
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const pageW=pdf.internal.pageSize.getWidth();
-    const pageH=pdf.internal.pageSize.getHeight();
-    const margem=8;
-    // o documento já é montado na proporção da A4, então preenche a folha inteira
-    const imgW=pageW-margem*2;
-    const imgH=pageH-margem*2;
-    const x=(pageW-imgW)/2;
-    pdf.setProperties({title:titulo, subject:titulo, creator:'Setec Agro'});
-    pdf.addImage(img,'JPEG',x,margem,imgW,imgH);
-    const blob=pdf.output('blob');
-    let arquivo=null;
-    try{ arquivo=new File([blob],nomeArq,{type:'application/pdf'}); }catch(_){}
+  const canvas=await html2canvas(doc,{scale:1.7,backgroundColor:'#ffffff',useCORS:true});
+  const img=canvas.toDataURL('image/jpeg',0.86);
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pageW=pdf.internal.pageSize.getWidth();
+  const pageH=pdf.internal.pageSize.getHeight();
+  const margem=8;
+  const imgW=pageW-margem*2;
+  const imgH=pageH-margem*2;
+  const x=(pageW-imgW)/2;
+  pdf.setProperties({title:titulo, subject:titulo, creator:'Setec Agro'});
+  pdf.addImage(img,'JPEG',x,margem,imgW,imgH);
+  const blob=pdf.output('blob');
+  let arquivo=null;
+  try{ arquivo=new File([blob],nomeArq,{type:'application/pdf'}); }catch(_){}
+  return {blob, arquivo, nomeArq, titulo};
+}
 
-    // 1ª tentativa: compartilhamento nativo com o arquivo (abre WhatsApp, e-mail etc.)
+function salvarPdfArquivo(blob, nomeArq){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=nomeArq;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+async function comBotao(btn, txtCarregando, fn){
+  if(!btn) return;
+  const orig=btn.textContent;
+  btn.textContent=txtCarregando; btn.disabled=true;
+  try{ await fn(); }
+  catch(e){ alert(e&&e.message?e.message:('Erro: '+e)); }
+  finally{ btn.textContent=orig; btn.disabled=false; }
+}
+
+// COMPARTILHAR: abre o menu do sistema com o PDF anexado
+document.getElementById('pedCompartilhar') && (document.getElementById('pedCompartilhar').onclick=()=>{
+  const btn=document.getElementById('pedCompartilhar');
+  comBotao(btn,'Gerando...',async ()=>{
+    const {blob, arquivo, nomeArq, titulo}=await gerarPdfPedido();
     let compartilhou=false;
     if(arquivo && navigator.share){
       const podeArquivo = !navigator.canShare || navigator.canShare({files:[arquivo]});
       if(podeArquivo){
-        try{
-          await navigator.share({files:[arquivo], title:titulo});
-          compartilhou=true;
-        }catch(e){
-          if(e && e.name==='AbortError'){ compartilhou=true; } // usuário fechou o menu
-        }
+        try{ await navigator.share({files:[arquivo], title:titulo}); compartilhou=true; }
+        catch(e){ if(e && e.name==='AbortError'){ compartilhou=true; } }
       }
     }
-    // 2ª tentativa: compartilhar só com o arquivo (alguns navegadores recusam title junto)
     if(!compartilhou && arquivo && navigator.share){
-      try{
-        await navigator.share({files:[arquivo]});
-        compartilhou=true;
-      }catch(e){
-        if(e && e.name==='AbortError'){ compartilhou=true; }
-      }
+      try{ await navigator.share({files:[arquivo]}); compartilhou=true; }
+      catch(e){ if(e && e.name==='AbortError'){ compartilhou=true; } }
     }
-    // último recurso: salvar o arquivo para o usuário enviar manualmente
-    if(!compartilhou){ baixarPdf(blob); }
-  }catch(e){
-    alert('Não foi possível gerar o PDF: '+(e&&e.message?e.message:e));
-  }finally{
-    btn.textContent=txtOrig;
-    btn.disabled=false;
-  }
+    if(!compartilhou){
+      salvarPdfArquivo(blob, nomeArq);
+      alert('Seu navegador não permite compartilhar direto, então o PDF "'+nomeArq+'" foi salvo no dispositivo.\n\nDica: no iPhone, use o Safari para compartilhar direto no WhatsApp, e-mail etc.');
+    }
+  });
+});
+
+// SALVAR NO DISPOSITIVO: baixa o PDF direto
+document.getElementById('pedSalvar') && (document.getElementById('pedSalvar').onclick=()=>{
+  const btn=document.getElementById('pedSalvar');
+  comBotao(btn,'Gerando...',async ()=>{
+    const {blob, nomeArq}=await gerarPdfPedido();
+    salvarPdfArquivo(blob, nomeArq);
+  });
+});
+
+// WHATSAPP: no celular tenta compartilhar direto; senão salva o PDF e abre a conversa com a mensagem
+document.getElementById('pedWhats') && (document.getElementById('pedWhats').onclick=()=>{
+  const btn=document.getElementById('pedWhats');
+  comBotao(btn,'Gerando...',async ()=>{
+    const {blob, arquivo, nomeArq, titulo}=await gerarPdfPedido();
+    if(arquivo && navigator.share && (!navigator.canShare || navigator.canShare({files:[arquivo]}))){
+      try{ await navigator.share({files:[arquivo], title:titulo}); return; }
+      catch(e){ if(e && e.name==='AbortError'){ return; } }
+    }
+    salvarPdfArquivo(blob, nomeArq);
+    const tipo = pedidoAtualCotacao ? 'a cotação' : 'o pedido';
+    const msg = 'Olá! Segue '+tipo+(pedidoAtualCli?(' de '+pedidoAtualCli):'')+'. (O PDF "'+nomeArq+'" foi salvo no seu dispositivo — anexe-o aqui na conversa.)';
+    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  });
 });
 
 document.getElementById('tabMinhas').onclick=()=>{ if(precisaLogin()){ showTab('minhas'); } };
@@ -2288,7 +2308,13 @@ function importarCarteira(ev, origem){
       // mapeamento das colunas do relatório Fatu41901
       const c={
         loja:      acharCol(H,['codigo da loja']),
-        pedido:    acharCol(H,['codigo do pedido de venda']),
+        pedido:    (function(){
+                     // busca exata primeiro para não pegar coluna parecida por engano
+                     let i=acharCol(H,['codigo do pedido de venda'],true);
+                     if(i<0) i=acharCol(H,['codigo do pedido de venda']);
+                     if(i<0) i=acharCol(H,['numero do pedido'],true);
+                     return i;
+                   })(),
         serie:     acharCol(H,['serie do pedido']),
         origem:    acharCol(H,['numero do pedido de origem']),
         cliCod:    acharCol(H,['codigo do parceiro']),
