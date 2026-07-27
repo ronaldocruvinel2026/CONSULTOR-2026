@@ -116,6 +116,11 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .fab-add{position:fixed;right:20px;bottom:24px;z-index:60;display:none;align-items:center;gap:6px;background:var(--leaf-dark);color:#fff;border:0;border-radius:30px;padding:14px 22px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 6px 20px rgba(31,74,55,.35);transition:all .15s}
 .fab-add:hover{background:var(--leaf);transform:translateY(-2px);box-shadow:0 8px 24px rgba(31,74,55,.45)}
 .fab-add:active{transform:translateY(0)}
+.busca-fixa{position:fixed;left:0;right:0;bottom:0;z-index:70;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 20px rgba(31,74,55,.15);padding:12px 16px;transform:translateY(120%);transition:transform .25s ease;display:block}
+.busca-fixa.on{transform:translateY(0)}
+.busca-fixa .search{margin:0}
+.cot-sug-fixa{position:absolute;left:16px;right:16px;bottom:calc(100% - 6px);max-height:50vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 -6px 24px rgba(31,74,55,.18);margin-bottom:8px;display:none}
+.cot-sug-fixa.on{display:block}
 .ci-grid>.ci-field{min-width:0}
 .ci-field{display:flex;flex-direction:column;gap:4px}
 .ci-field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -203,8 +208,9 @@ table.cot tbody tr:last-child td{border-bottom:0}
 .cot-actions{display:flex;gap:10px;flex-wrap:wrap}
 /* minhas cotações */
 .mc-list{display:flex;flex-direction:column;gap:12px}
-.mc-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.mc-info{flex:1;min-width:200px}
+.mc-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.mc-btns{display:flex;gap:8px;flex-wrap:wrap;width:100%}
+.mc-info{flex:1;min-width:0}
 .mc-cliente{font-size:16px;font-weight:700;color:var(--ink)}
 .mc-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
 .mc-status{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 10px;border-radius:6px;display:inline-block;margin-top:6px}
@@ -336,7 +342,7 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .mc-card.is-pedido{border-left:4px solid var(--leaf)}
 .mc-card.is-cotacao{border-left:4px solid var(--gold)}
 .mc-consultor{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
-.mc-info{flex:1;min-width:180px}
+.mc-info{flex:1;min-width:0}
 .mc-total{font-size:20px;font-weight:800;color:var(--leaf-dark);white-space:nowrap}
 .mc-btns{display:flex;gap:8px;flex-wrap:wrap}
 .mc-btn{padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-family:inherit}
@@ -541,6 +547,13 @@ body.login-aberto{overflow:hidden}
     </div>
   </main>
   <button class="fab-add" id="fabAdd" title="Adicionar outro produto">+ Adicionar produto</button>
+  <div class="busca-fixa" id="buscaFixa">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="cotBuscaFixa" type="text" placeholder="Buscar produto para adicionar...">
+    </div>
+    <div id="cotSugFixa" class="cot-sug cot-sug-fixa"></div>
+  </div>
 </div>
 
 <div class="panel" id="minhasView">
@@ -1213,22 +1226,26 @@ function buildCotPagSel(){
   const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
   document.getElementById('cotData').value=dd+'/'+mm+'/'+d.getFullYear();
 }
-function renderSugestoes(termo){
-  const box=document.getElementById('cotSug');
+function renderSugestoes(termo, boxId, inputId){
+  boxId=boxId||'cotSug'; inputId=inputId||'cotBusca';
+  const box=document.getElementById(boxId);
   const q=norm(termo||'');
   if(!q){ box.classList.remove('on'); box.innerHTML=''; return; }
   const r=PRODUTOS.filter(p=>{
     if(p.oculto && !ehAdmin) return false; // produtos ocultos não entram em cotação
     return norm(p.prod).includes(q)||norm(p.ia).includes(q)||norm(p.fab).includes(q);
   }).slice(0,30);
-  const btnManual='<div class="sug-manual" id="sugManual"><span class="sm-ico">+</span><div><div class="sm-t">Adicionar "'+esc(termo)+'" manualmente</div><div class="sm-s">Você digita o preço na cotação</div></div></div>';
+  function limpar(){
+    const inp=document.getElementById(inputId);
+    if(inp) inp.value='';
+    box.classList.remove('on'); box.innerHTML='';
+    // se veio da barra fixa, recolhe a barra também
+    if(boxId==='cotSugFixa'){ const bf=document.getElementById('buscaFixa'); if(bf) bf.classList.remove('on'); }
+  }
+  const btnManual='<div class="sug-manual" id="sugManual_'+boxId+'"><span class="sm-ico">+</span><div><div class="sm-t">Adicionar "'+esc(termo)+'" manualmente</div><div class="sm-s">Você digita o preço na cotação</div></div></div>';
   function ligarManual(){
-    const bm=document.getElementById('sugManual');
-    if(bm) bm.onclick=()=>{
-      addItemManual(termo);
-      document.getElementById('cotBusca').value='';
-      box.classList.remove('on'); box.innerHTML='';
-    };
+    const bm=document.getElementById('sugManual_'+boxId);
+    if(bm) bm.onclick=()=>{ addItemManual(termo); limpar(); };
   }
   if(!r.length){
     box.classList.add('on');
@@ -1244,20 +1261,19 @@ function renderSugestoes(termo){
   ligarManual();
   box.querySelectorAll('.sug-item').forEach(it=>it.onclick=()=>{
     addItem(+it.dataset.i);
-    document.getElementById('cotBusca').value='';
-    box.classList.remove('on'); box.innerHTML='';
+    limpar();
   });
 }
 function addItem(i){
   if(cotItens.some(x=>!x.manual && x.i===i)){ alert('Este produto já está na cotação.'); return; }
-  cotItens.push({i:i, qtd:1, precoCot:null});
+  cotItens.push({i:i, qtd:'', precoCot:null});
   renderCot();
 }
 /* item digitado manualmente (produto que não está na lista) */
 function addItemManual(nome){
   const n=(nome||'').trim();
   if(!n) return;
-  cotItens.push({i:null, manual:true, nome:n.toUpperCase(), qtd:1, precoCot:null, unid:'UN'});
+  cotItens.push({i:null, manual:true, nome:n.toUpperCase(), qtd:'', precoCot:null, unid:'UN'});
   renderCot();
 }
 function renderCot(){
@@ -1286,7 +1302,7 @@ function renderCot(){
       '<div class="ci-head">'+cab+
         '<button class="ci-del" data-idx="'+idx+'" title="Remover">✕</button></div>'+
       '<div class="ci-grid">'+
-        '<div class="ci-field"><label>Quantidade</label><div class="qtd-wrap"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+String(it.qtd).replace('.',',')+'">'+
+        '<div class="ci-field"><label>Quantidade</label><div class="qtd-wrap"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(it.qtd!==''&&it.qtd!=null?String(it.qtd).replace('.',','):'')+'" placeholder="0">'+
           (manual
             ? '<select class="unid-sel" data-idx="'+idx+'">'+['LT','KG','BLS','BAG','SC','CT','UN'].map(u=>'<option value="'+u+'"'+(unidItem===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'
             : '<span class="unid-fixa">'+esc(unidItem)+'</span>')+
@@ -1326,8 +1342,10 @@ function renderCot(){
   body.querySelectorAll('.qtd-input').forEach(inp=>{
     inp.onchange=()=>{
       const idx=+inp.dataset.idx;
-      const v=parseFloat(inp.value.replace(/\./g,'').replace(',','.'));
-      cotItens[idx].qtd=(!isNaN(v)&&v>0)?v:1;
+      const txt=inp.value.trim();
+      if(txt===''){ cotItens[idx].qtd=''; renderCot(); return; }
+      const v=parseFloat(txt.replace(/\./g,'').replace(',','.'));
+      cotItens[idx].qtd=(!isNaN(v)&&v>0)?v:'';
       renderCot();
     };
     inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
@@ -1351,6 +1369,7 @@ function renderCot(){
   });
 }
 document.getElementById('cotBusca').oninput=e=>renderSugestoes(e.target.value);
+document.getElementById('cotBuscaFixa') && (document.getElementById('cotBuscaFixa').oninput=e=>renderSugestoes(e.target.value,'cotSugFixa','cotBuscaFixa'));
 document.getElementById('cotLimpar').onclick=()=>{
   if(!cotItens.length && !document.getElementById('cotCliente').value){ return; }
   if(confirm('Limpar toda a cotação?')){
@@ -1600,6 +1619,12 @@ document.getElementById('cotSalvar').onclick=async ()=>{
   const cliente=document.getElementById('cotCliente').value.trim();
   if(!cliente){ alert('Informe o nome do cliente.'); return; }
   if(!cotItens.length){ alert('Adicione pelo menos um produto.'); return; }
+  const semQtd=cotItens.some(it=>{
+    if(it.qtd==='' || it.qtd==null) return true;
+    const q=parseFloat(String(it.qtd).replace(/\./g,'').replace(',','.'));
+    return isNaN(q) || q<=0;
+  });
+  if(semQtd){ alert('Há um produto sem quantidade. Preencha a quantidade de todos os itens antes de salvar.'); return; }
   const semNome=cotItens.some(it=>it.manual && !(it.nome||'').trim());
   if(semNome){ alert('Há um produto digitado sem nome. Preencha o nome antes de salvar.'); return; }
   const d=coletarDadosCotacao();
@@ -2028,10 +2053,15 @@ document.getElementById('pedWhats') && (document.getElementById('pedWhats').oncl
 });
 
 document.getElementById('fabAdd') && (document.getElementById('fabAdd').onclick=()=>{
-  const busca=document.getElementById('cotBusca');
-  if(busca){
-    busca.scrollIntoView({behavior:'smooth', block:'center'});
-    setTimeout(()=>busca.focus(), 300);
+  const barra=document.getElementById('buscaFixa');
+  if(!barra) return;
+  const abrindo=!barra.classList.contains('on');
+  barra.classList.toggle('on', abrindo);
+  if(abrindo){
+    const inp=document.getElementById('cotBuscaFixa');
+    setTimeout(()=>{ if(inp) inp.focus(); }, 100);
+  }else{
+    document.getElementById('cotSugFixa').classList.remove('on');
   }
 });
 document.getElementById('tabMinhas') && (document.getElementById('tabMinhas').onclick=()=>{ if(precisaLogin()){ showTab('minhas'); } });
@@ -2742,9 +2772,11 @@ function showTab(t){
   if(t==='usuarios'){renderUsuarios();}
   if(t==='carteira'){renderCarteira();}
   if(t==='estoque'){renderEstoque();}
-  // botão flutuante "+ Adicionar produto" só na aba de cotação
+  // botão flutuante "+ Adicionar produto" e barra fixa só na aba de cotação
   const fab=document.getElementById('fabAdd');
   if(fab) fab.style.display=(t==='cotacao')?'flex':'none';
+  const bf=document.getElementById('buscaFixa');
+  if(bf && t!=='cotacao'){ bf.classList.remove('on'); }
 }
 document.getElementById('tabList').onclick=()=>showTab('list');
 document.getElementById('tabCotacao').onclick=()=>showTab('cotacao');
