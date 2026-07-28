@@ -353,6 +353,26 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .fat-item-x:hover{background:#fbe6e0}
 .fat-item-meta{font-size:11.5px;color:var(--muted);margin-top:4px;font-weight:600}
 .fat-item-cli{font-size:12.5px;font-weight:800;color:var(--leaf-dark);margin-top:5px;background:var(--leaf-soft);display:inline-block;padding:2px 9px;border-radius:6px}
+/* ===== filtro multi-cliente da carteira ===== */
+.cart-cli-filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+#cartCliBtn{background:#fff;border:1.5px solid var(--leaf);color:var(--leaf-dark);padding:8px 14px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
+#cartCliBtn:hover{background:var(--leaf-soft)}
+.cart-cli-chips{display:flex;gap:6px;flex-wrap:wrap}
+.cart-cli-chip{display:inline-flex;align-items:center;gap:6px;background:var(--leaf);color:#fff;padding:5px 10px;border-radius:16px;font-size:12px;font-weight:700}
+.cart-cli-chip button{background:rgba(255,255,255,.25);border:0;color:#fff;width:16px;height:16px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;flex-shrink:0}
+.cart-cli-chip button:hover{background:rgba(255,255,255,.45)}
+.cart-cli-limpar{background:none;border:0;color:var(--danger);font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:underline;font-family:inherit;flex-shrink:0}
+.cart-cli-panel{display:none;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 8px 26px rgba(31,74,55,.14);padding:12px;margin-bottom:14px}
+.cart-cli-panel.on{display:block}
+.cart-cli-panel-busca input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;outline:none;font-family:inherit}
+.cart-cli-panel-busca input:focus{border-color:var(--leaf)}
+.cart-cli-lista{max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:10px 0}
+.cart-cli-opt{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--line)}
+.cart-cli-opt:last-child{border-bottom:0}
+.cart-cli-opt:hover{background:var(--leaf-soft)}
+.cart-cli-opt input{width:17px;height:17px;accent-color:var(--leaf);cursor:pointer;flex-shrink:0}
+.cart-cli-opt.marcado{background:var(--leaf-soft);font-weight:700}
+.cart-cli-panel-foot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:10px}
 .fat-item-qtd{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .fat-item-qtd label{font-size:12px;font-weight:700;color:var(--leaf-dark)}
 .fat-qtd-input{width:120px;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;font-weight:700;color:var(--ink);outline:none;font-family:inherit;text-align:right}
@@ -776,6 +796,20 @@ body.login-aberto{overflow:hidden}
           <input id="cartBusca" type="text" placeholder="Buscar cliente, fazenda, produto ou nº do pedido...">
         </div>
         <select id="cartVendFiltro" style="min-width:180px"><option value="ALL">Todos os vendedores</option></select>
+      </div>
+      <div class="cart-cli-filtro">
+        <button class="mc-fbtn" id="cartCliBtn" type="button">＋ Selecionar clientes</button>
+        <div id="cartCliChips" class="cart-cli-chips"></div>
+        <button class="cart-cli-limpar" id="cartCliLimpar" type="button" style="display:none">Limpar clientes</button>
+      </div>
+      <div id="cartCliPanel" class="cart-cli-panel">
+        <div class="cart-cli-panel-busca">
+          <input id="cartCliBusca" type="text" placeholder="Buscar cliente para marcar...">
+        </div>
+        <div id="cartCliLista" class="cart-cli-lista"></div>
+        <div class="cart-cli-panel-foot">
+          <button class="btn ghost" id="cartCliFechar" type="button">Fechar</button>
+        </div>
       </div>
       <div class="mc-filtros">
         <button class="mc-fbtn on" data-cf="aberto">Em aberto</button>
@@ -2258,6 +2292,7 @@ let cartFiltro='aberto';
 let cartOrigem='TODAS';
 let cartBusca='';
 let cartVend='ALL';
+let cartClientes=new Set(); // clientes selecionados no filtro múltiplo
 let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
 
 async function carregarCarteira(){
@@ -2282,6 +2317,7 @@ function renderCarteira(){
   const sub=document.getElementById('cartSub');
   const resumo=document.getElementById('cartResumo');
   if(!usuario){ list.innerHTML='<div class="mc-vazio">Faça login para ver a carteira.</div>'; return; }
+  renderCartCliChips();
 
   // painel de importação só para admin
   const imp=document.getElementById('cartImport');
@@ -2315,6 +2351,11 @@ function renderCarteira(){
   // filtro de situação
   if(cartFiltro==='aberto') linhas=linhas.filter(l=>(+l.saldo||0)>0);
   else if(cartFiltro==='entregue') linhas=linhas.filter(l=>(+l.saldo||0)<=0);
+
+  // filtro múltiplo de clientes (se houver algum marcado)
+  if(cartClientes.size>0){
+    linhas=linhas.filter(l=>cartClientes.has(l.cliente_nome||'—'));
+  }
 
   // busca
   const q=norm(cartBusca);
@@ -2620,6 +2661,58 @@ document.querySelectorAll('#carteiraView [data-corig]').forEach(b=>{
 });
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
+
+/* ---- seleção múltipla de clientes na carteira ---- */
+// lista de clientes disponíveis, respeitando vendedor/empresa (não filtra por situação nem por cliente já marcado)
+function clientesDisponiveis(){
+  let base=carteiraVisivel();
+  if((ehAdmin||meuPapel==='gerente') && cartVend!=='ALL') base=base.filter(l=>l.vendedor_nome===cartVend);
+  if(cartOrigem!=='TODAS') base=base.filter(l=>(l.origem||'SETEC')===cartOrigem);
+  return [...new Set(base.map(l=>l.cliente_nome||'—'))].sort((a,b)=>a.localeCompare(b,'pt'));
+}
+function renderCartCliChips(){
+  const wrap=document.getElementById('cartCliChips');
+  const limpar=document.getElementById('cartCliLimpar');
+  if(!wrap) return;
+  if(cartClientes.size===0){ wrap.innerHTML=''; if(limpar) limpar.style.display='none'; return; }
+  if(limpar) limpar.style.display='';
+  wrap.innerHTML=[...cartClientes].map(c=>'<span class="cart-cli-chip">'+esc(c)+'<button data-cli-rem="'+esc(c)+'" title="Remover">✕</button></span>').join('');
+  wrap.querySelectorAll('[data-cli-rem]').forEach(b=>{
+    b.onclick=()=>{ cartClientes.delete(b.dataset.cliRem); renderCartCliChips(); renderCartCliLista(); renderCarteira(); };
+  });
+}
+function renderCartCliLista(){
+  const lista=document.getElementById('cartCliLista');
+  if(!lista) return;
+  const q=norm(document.getElementById('cartCliBusca')?document.getElementById('cartCliBusca').value:'');
+  let cls=clientesDisponiveis();
+  if(q) cls=cls.filter(c=>norm(c).includes(q));
+  if(!cls.length){ lista.innerHTML='<div class="mc-vazio" style="padding:16px">Nenhum cliente encontrado.</div>'; return; }
+  lista.innerHTML=cls.map(c=>{
+    const on=cartClientes.has(c);
+    return '<label class="cart-cli-opt'+(on?' marcado':'')+'"><input type="checkbox" data-cli="'+esc(c)+'"'+(on?' checked':'')+'>'+esc(c)+'</label>';
+  }).join('');
+  lista.querySelectorAll('input[data-cli]').forEach(cb=>{
+    cb.onchange=()=>{
+      if(cb.checked) cartClientes.add(cb.dataset.cli); else cartClientes.delete(cb.dataset.cli);
+      renderCartCliChips(); renderCarteira();
+      cb.closest('.cart-cli-opt').classList.toggle('marcado',cb.checked);
+    };
+  });
+}
+(function(){
+  const btn=document.getElementById('cartCliBtn');
+  const panel=document.getElementById('cartCliPanel');
+  const fechar=document.getElementById('cartCliFechar');
+  const busca=document.getElementById('cartCliBusca');
+  const limpar=document.getElementById('cartCliLimpar');
+  if(btn&&panel){
+    btn.onclick=()=>{ const abrir=!panel.classList.contains('on'); panel.classList.toggle('on',abrir); if(abrir) renderCartCliLista(); };
+  }
+  if(fechar) fechar.onclick=()=>panel.classList.remove('on');
+  if(busca) busca.oninput=()=>renderCartCliLista();
+  if(limpar) limpar.onclick=()=>{ cartClientes.clear(); renderCartCliChips(); renderCartCliLista(); renderCarteira(); };
+})();
 
 /* ---- importação do Excel do SIAGRI (só admin) ---- */
 function cartStatus(tipo,msg){
