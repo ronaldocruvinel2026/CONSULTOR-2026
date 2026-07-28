@@ -352,6 +352,7 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .fat-item-x{background:none;border:0;color:var(--danger);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0}
 .fat-item-x:hover{background:#fbe6e0}
 .fat-item-meta{font-size:11.5px;color:var(--muted);margin-top:4px;font-weight:600}
+.fat-item-cli{font-size:12.5px;font-weight:800;color:var(--leaf-dark);margin-top:5px;background:var(--leaf-soft);display:inline-block;padding:2px 9px;border-radius:6px}
 .fat-item-qtd{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .fat-item-qtd label{font-size:12px;font-weight:700;color:var(--leaf-dark)}
 .fat-qtd-input{width:120px;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;font-weight:700;color:var(--ink);outline:none;font-family:inherit;text-align:right}
@@ -2462,6 +2463,7 @@ function abrirFatModal(){
         '<div class="fat-item-nome">'+esc(l.produto_desc||'')+(l.fabricante?'<span class="ci-fabmini">'+esc(l.fabricante)+'</span>':'')+'</div>'+
         '<button class="fat-item-x" data-rem="'+l._selId+'" title="Tirar da solicitação">✕</button>'+
       '</div>'+
+      '<div class="fat-item-cli">Cliente: '+esc(l.cliente_nome||'—')+'</div>'+
       '<div class="fat-item-meta">Pedido <b>'+esc(l.pedido||'')+'</b>'+(l.loja?(' · '+esc(nomeEmpresa(+l.loja)||('Loja '+l.loja))):'')+' · Saldo disponível: '+brl(saldo)+' '+esc(l.unidade||'')+'</div>'+
       '<div class="fat-item-qtd"><label>Quantidade a faturar</label>'+
         '<input class="fat-qtd-input" data-sel="'+l._selId+'" type="text" inputmode="decimal" value="'+String(qs).replace('.',',')+'"><span class="fat-unid">'+esc(l.unidade||'')+'</span>'+
