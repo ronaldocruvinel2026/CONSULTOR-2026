@@ -449,10 +449,15 @@ body.login-aberto{overflow:hidden}
 .ped-doc table.itens td{border:1.2px solid #000;padding:5px 6px;height:22px;font-size:11px}
 .ped-doc table.itens td .it-obs{font-size:9.5px;font-style:italic;color:#333;margin-top:2px;font-weight:normal}
 .ped-doc td.c{text-align:center}.ped-doc td.r{text-align:right}
-.ped-doc .fat-head{border:2px solid #111;border-bottom:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px}
+.ped-doc .fat-head{border:2px solid #111;border-bottom:0;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 16px}
+.ped-doc .fat-head .fat-logo{display:flex;align-items:center;flex-shrink:0}
+.ped-doc .fat-head .fat-logo img{width:150px;height:auto;display:block}
+.ped-doc .fat-head .fat-titcol{flex:1;text-align:center}
 .ped-doc .fat-head .fat-titulo{font-size:20px;font-weight:800;letter-spacing:1px;color:#111}
 .ped-doc .fat-head .fat-data{font-size:12px;font-weight:600;color:#333}
 .ped-doc table.itens tr.fat-cliente-row td{background:#d8d8d8;font-weight:800;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:#111;padding:6px 8px}
+.ped-doc table.itens td.fat-cli-cel{font-weight:800;font-size:11px;background:#f0f0f0;vertical-align:top;text-transform:uppercase;letter-spacing:.2px}
+.ped-doc table.itens tr.fat-grp-ini td{border-top:2px solid #000}
 .ped-doc .tot{display:flex;justify-content:flex-end;border:2px solid #111;border-top:0;padding:8px 12px;font-size:15px;font-weight:800;gap:12px}
 .ped-doc .obs{border:2px solid #111;border-top:0;padding:8px 12px;font-size:9.5px;color:#333;line-height:1.4}
 .ped-doc .assin{margin-top:40px;text-align:center;font-size:10px;border-top:1px solid #111;width:60%;margin:40px auto 0;padding-top:4px}
@@ -2539,14 +2544,19 @@ async function gerarPdfFaturamento(){
   });
   const linhasTbl=Object.keys(porCliente).map(ck=>{
     const porPed=porCliente[ck];
-    // cabeçalho do cliente (só quando há mais de um cliente, ou sempre para ficar claro)
-    const cabCliente='<tr class="fat-cliente-row"><td colspan="6">'+esc(ck)+'</td></tr>';
+    // total de linhas de itens deste cliente (para o nome ocupar só a 1a linha)
+    let primeiraDoCliente=true;
     const corpo=Object.keys(porPed).map(pk=>{
       const g=porPed[pk];
       const emp=g[0].loja?(nomeEmpresa(+g[0].loja)||('Loja '+g[0].loja)):'';
       return g.map((l,idx)=>{
         const qs=fatQtd[l._selId]!=null?fatQtd[l._selId]:(+l.saldo||0);
-        return '<tr>'+
+        // marca a 1a linha de cada cliente para desenhar a borda de separação
+        const cls=primeiraDoCliente?' class="fat-grp-ini"':'';
+        const cliCel=primeiraDoCliente?('<td class="fat-cli-cel">'+esc(ck)+'</td>'):'<td></td>';
+        primeiraDoCliente=false;
+        return '<tr'+cls+'>'+
+          cliCel+
           '<td class="c">'+(idx===0?esc(String(pk)):'')+'</td>'+
           '<td>'+(idx===0?esc(emp):'')+'</td>'+
           '<td>'+esc(l.produto_desc||'')+'</td>'+
@@ -2556,21 +2566,22 @@ async function gerarPdfFaturamento(){
         '</tr>';
       }).join('');
     }).join('');
-    return cabCliente+corpo;
+    return corpo;
   }).join('');
   const nItens=itens.length;
   // linhas em branco: conta cabeçalhos de cliente ocupando espaço
-  const nLinhasUsadas=nItens+clientesUnicos.length;
+  const nLinhasUsadas=nItens;
   const minL=12; let vazias='';
-  for(let k=nLinhasUsadas;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
+  for(let k=nLinhasUsadas;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'; }
   const clienteCad = clientesUnicos.length===1 ? clientesUnicos[0] : (clientesUnicos.length+' clientes');
   const doc=
     '<div class="ped-doc" id="fatDoc">'+
     '<div class="fat-head">'+
-      '<div class="fat-titulo">SOLICITAÇÃO DE FATURAMENTO</div>'+
+      '<div class="fat-logo"><img src="'+LOGO_PED+'"></div>'+
+      '<div class="fat-titcol"><div class="fat-titulo">SOLICITAÇÃO DE FATURAMENTO</div></div>'+
       '<div class="fat-data">Data: '+dataStr+(consultor?('<br>Consultor: '+esc(consultor)):'')+'<br>Itens: '+nItens+'</div>'+
     '</div>'+
-    '<div class="itens-wrap"><table class="itens"><thead><tr><th>Pedido</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
+    '<div class="itens-wrap"><table class="itens"><thead><tr><th>Cliente</th><th>Pedido</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
     '<div class="obs">Solicito o faturamento dos itens acima relacionados, conforme as quantidades indicadas na coluna "Qtd. a faturar". Documento gerado pelo sistema de cotações Setec Agro.'+
       '<div class="assin">Assinatura do Consultor</div></div>'+
     '</div>';
