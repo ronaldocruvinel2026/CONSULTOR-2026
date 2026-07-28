@@ -305,12 +305,34 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .cv-ok{font-size:12px;font-weight:800;color:var(--leaf-dark);background:var(--leaf-soft);padding:2px 8px;border-radius:6px;margin-top:3px;display:inline-block}
 .cart-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .cart-tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px}
-.cart-tbl th{background:var(--bg);color:var(--muted);text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:800;white-space:nowrap}
+.cart-tbl th{background:var(--paper);color:var(--muted);text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:800;white-space:nowrap}
 .cart-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
 .cart-tbl td.c,.cart-tbl th.c{text-align:center}
 .cart-tbl td.r,.cart-tbl th.r{text-align:right;white-space:nowrap}
 .sld-aberto{color:#8a6d1f;font-weight:800}
 .sld-ok{color:var(--muted)}
+/* ===== carteira: card por cliente, pedidos separados dentro ===== */
+.cart-cliente{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px;box-shadow:0 3px 12px rgba(31,74,55,.07)}
+.cart-cliente.is-aberto{border-left:5px solid var(--gold)}
+.cart-cliente.is-ok{border-left:5px solid var(--leaf)}
+.cart-clihead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;padding-bottom:12px;margin-bottom:12px;border-bottom:2px solid var(--line)}
+.cart-climeta{font-size:12px;color:var(--muted);margin-top:3px;font-weight:600}
+.cart-pedido{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-top:10px}
+.cart-pedido.is-aberto{border-left:4px solid var(--gold)}
+.cart-pedido.is-ok{border-left:4px solid var(--leaf)}
+.cart-pedhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:8px}
+.fat-linha{cursor:pointer}
+.fat-linha:hover{background:var(--leaf-soft)}
+.fat-cel{width:34px}
+.fat-check{width:17px;height:17px;accent-color:var(--leaf);cursor:pointer}
+/* ===== barra flutuante de solicitação de faturamento ===== */
+.fat-barra{position:fixed;left:50%;transform:translate(-50%,140%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:120;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;background:var(--leaf-dark);color:#fff;padding:12px 16px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.28);width:calc(100% - 28px);max-width:640px;opacity:0;pointer-events:none;transition:transform .25s ease,opacity .25s ease}
+.fat-barra.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.fat-barra #fatBarraTxt{font-size:13.5px;font-weight:700;flex:1;min-width:140px}
+.fat-barra-btns{display:flex;gap:8px;flex-shrink:0}
+.fat-barra-btns .btn{padding:9px 16px;font-size:13.5px}
+.fat-barra-btns .btn.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.5)}
+.fat-barra-btns .btn.ghost:hover{background:rgba(255,255,255,.12)}
 .ci-fabmini{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
 .prog{width:52px;height:6px;background:var(--line);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}
 .prog-in{height:100%;background:var(--leaf);border-radius:4px}
