@@ -2436,10 +2436,8 @@ function atualizarBarraFat(){
   if(!barra) return;
   const ids=Object.keys(fatSel);
   if(!ids.length){ barra.classList.remove('on'); return; }
-  // confere se é tudo do mesmo cliente
-  const clientes=new Set(ids.map(id=>{ const l=linhaPorSelId(id); return l?l.cliente_nome:null; }));
   const cont=document.getElementById('fatBarraTxt');
-  if(cont) cont.textContent=ids.length+' item(ns) selecionado(s)'+(clientes.size>1?' — atenção: clientes diferentes':'');
+  if(cont) cont.textContent=ids.length+' item(ns) selecionado(s)';
   barra.classList.add('on');
 }
 
@@ -2452,12 +2450,8 @@ function fatItensSelecionados(){
 function abrirFatModal(){
   const itens=fatItensSelecionados();
   if(!itens.length) return;
-  const clientes=[...new Set(itens.map(l=>l.cliente_nome||'—'))];
   const body=document.getElementById('fatModalBody');
   let aviso='';
-  if(clientes.length>1){
-    aviso='<div class="fat-aviso">⚠ Você selecionou itens de clientes diferentes ('+clientes.map(esc).join(', ')+'). Normalmente a solicitação é de um cliente por vez.</div>';
-  }
   const linhas=itens.map(l=>{
     const saldo=+l.saldo||0;
     // quantidade solicitada começa igual ao saldo, salvo edição anterior
