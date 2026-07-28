@@ -811,15 +811,6 @@ body.login-aberto{overflow:hidden}
           <button class="btn ghost" id="cartCliFechar" type="button">Fechar</button>
         </div>
       </div>
-      <div class="mc-filtros">
-        <button class="mc-fbtn on" data-cf="aberto">Em aberto</button>
-        <button class="mc-fbtn" data-cf="todos">Todos</button>
-        <button class="mc-fbtn" data-cf="entregue">Entregues</button>
-        <span class="filtro-sep"></span>
-        <button class="mc-fbtn on" data-corig="TODAS">Ambas</button>
-        <button class="mc-fbtn" data-corig="SETEC">SETEC</button>
-        <button class="mc-fbtn" data-corig="JSM">JSM</button>
-      </div>
 
       <div id="cartResumo" class="cart-resumo"></div>
       <div id="cartList" class="mc-list"></div>
@@ -2369,14 +2360,8 @@ function renderCarteira(){
   }
 
   // resumo
-  const totPedido=linhas.reduce((s,l)=>s+(+l.qtd_pedida||0)*(+l.vlr_unitario||0),0);
   const totSaldo=linhas.reduce((s,l)=>s+(+l.saldo||0)*(+l.vlr_unitario||0),0);
-  const nPedidos=new Set(linhas.map(l=>l.pedido)).size;
-  const nClientes=new Set(linhas.map(l=>l.cliente_nome)).size;
   resumo.innerHTML=
-    '<div><span>Pedidos</span><b>'+nPedidos+'</b></div>'+
-    '<div><span>Clientes</span><b>'+nClientes+'</b></div>'+
-    '<div><span>Valor total</span><b>R$ '+brl(totPedido)+'</b></div>'+
     '<div class="cart-destaque"><span>Saldo a entregar</span><b>R$ '+brl(totSaldo)+'</b></div>';
 
   if(!linhas.length){ list.innerHTML='<div class="mc-vazio">Nenhum resultado para esse filtro.</div>'; return; }
@@ -2653,12 +2638,6 @@ function nomeLojaCod(cod){
 }
 
 /* filtros e busca */
-document.querySelectorAll('#carteiraView [data-cf]').forEach(b=>{
-  b.onclick=()=>{ cartFiltro=b.dataset.cf; document.querySelectorAll('#carteiraView [data-cf]').forEach(x=>x.classList.toggle('on',x===b)); renderCarteira(); };
-});
-document.querySelectorAll('#carteiraView [data-corig]').forEach(b=>{
-  b.onclick=()=>{ cartOrigem=b.dataset.corig; document.querySelectorAll('#carteiraView [data-corig]').forEach(x=>x.classList.toggle('on',x===b)); renderCarteira(); };
-});
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
 
