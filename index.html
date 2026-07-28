@@ -449,6 +449,10 @@ body.login-aberto{overflow:hidden}
 .ped-doc table.itens td{border:1.2px solid #000;padding:5px 6px;height:22px;font-size:11px}
 .ped-doc table.itens td .it-obs{font-size:9.5px;font-style:italic;color:#333;margin-top:2px;font-weight:normal}
 .ped-doc td.c{text-align:center}.ped-doc td.r{text-align:right}
+.ped-doc .fat-head{border:2px solid #111;border-bottom:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px}
+.ped-doc .fat-head .fat-titulo{font-size:20px;font-weight:800;letter-spacing:1px;color:#111}
+.ped-doc .fat-head .fat-data{font-size:12px;font-weight:600;color:#333}
+.ped-doc table.itens tr.fat-cliente-row td{background:#d8d8d8;font-weight:800;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:#111;padding:6px 8px}
 .ped-doc .tot{display:flex;justify-content:flex-end;border:2px solid #111;border-top:0;padding:8px 12px;font-size:15px;font-weight:800;gap:12px}
 .ped-doc .obs{border:2px solid #111;border-top:0;padding:8px 12px;font-size:9.5px;color:#333;line-height:1.4}
 .ped-doc .assin{margin-top:40px;text-align:center;font-size:10px;border-top:1px solid #111;width:60%;margin:40px auto 0;padding-top:4px}
@@ -2521,42 +2525,50 @@ async function gerarPdfFaturamento(){
   if(typeof html2canvas==='undefined' || !window.jspdf){
     throw new Error('O PDF precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.');
   }
-  const cliente=itens[0].cliente_nome||'—';
+  const clientesUnicos=[...new Set(itens.map(l=>l.cliente_nome||'—'))];
   const consultor=itens[0].vendedor_nome||(perfil&&perfil.nome)||'';
   const dt=new Date();
   const dataStr=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
-  // agrupa por pedido para exibir organizado
-  const porPed={};
-  itens.forEach(l=>{ const k=l.pedido||'—'; (porPed[k]=porPed[k]||[]).push(l); });
-  const linhasTbl=Object.keys(porPed).map(pk=>{
-    const g=porPed[pk];
-    const emp=g[0].loja?(nomeEmpresa(+g[0].loja)||('Loja '+g[0].loja)):'';
-    return g.map((l,idx)=>{
-      const qs=fatQtd[l._selId]!=null?fatQtd[l._selId]:(+l.saldo||0);
-      return '<tr>'+
-        '<td class="c">'+(idx===0?esc(String(pk)):'')+'</td>'+
-        '<td>'+(idx===0?esc(emp):'')+'</td>'+
-        '<td>'+esc(l.produto_desc||'')+'</td>'+
-        '<td class="c">'+esc(l.unidade||'')+'</td>'+
-        '<td class="r">'+brl(+l.saldo||0)+'</td>'+
-        '<td class="r"><b>'+brl(qs)+'</b></td>'+
-      '</tr>';
+  // agrupa: cliente -> pedido -> itens
+  const porCliente={};
+  itens.forEach(l=>{
+    const ck=l.cliente_nome||'—';
+    if(!porCliente[ck]) porCliente[ck]={};
+    const pk=l.pedido||'—';
+    (porCliente[ck][pk]=porCliente[ck][pk]||[]).push(l);
+  });
+  const linhasTbl=Object.keys(porCliente).map(ck=>{
+    const porPed=porCliente[ck];
+    // cabeçalho do cliente (só quando há mais de um cliente, ou sempre para ficar claro)
+    const cabCliente='<tr class="fat-cliente-row"><td colspan="6">'+esc(ck)+'</td></tr>';
+    const corpo=Object.keys(porPed).map(pk=>{
+      const g=porPed[pk];
+      const emp=g[0].loja?(nomeEmpresa(+g[0].loja)||('Loja '+g[0].loja)):'';
+      return g.map((l,idx)=>{
+        const qs=fatQtd[l._selId]!=null?fatQtd[l._selId]:(+l.saldo||0);
+        return '<tr>'+
+          '<td class="c">'+(idx===0?esc(String(pk)):'')+'</td>'+
+          '<td>'+(idx===0?esc(emp):'')+'</td>'+
+          '<td>'+esc(l.produto_desc||'')+'</td>'+
+          '<td class="c">'+esc(l.unidade||'')+'</td>'+
+          '<td class="r">'+brl(+l.saldo||0)+'</td>'+
+          '<td class="r"><b>'+brl(qs)+'</b></td>'+
+        '</tr>';
+      }).join('');
     }).join('');
+    return cabCliente+corpo;
   }).join('');
   const nItens=itens.length;
+  // linhas em branco: conta cabeçalhos de cliente ocupando espaço
+  const nLinhasUsadas=nItens+clientesUnicos.length;
   const minL=12; let vazias='';
-  for(let k=nItens;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
-  const L=dadosLoja(itens[0].loja ? nomeLojaCod(itens[0].loja) : (meuLoja||LOJA_PADRAO));
-  const logo=LOGO_PED;
+  for(let k=nLinhasUsadas;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
+  const clienteCad = clientesUnicos.length===1 ? clientesUnicos[0] : (clientesUnicos.length+' clientes');
   const doc=
     '<div class="ped-doc" id="fatDoc">'+
-    '<div class="top">'+
-      '<div class="brand"><img class="ped-logo" src="'+logo+'"><div class="subb">'+esc(L.nome)+'</div></div>'+
-      '<div class="emp"><div class="t">'+esc(L.razao)+'</div><div class="l">'+esc(L.endereco)+'<br>'+esc(L.cidade)+'<br>'+esc(L.fone)+'<br>'+esc(L.doc)+'</div></div>'+
-      '<div class="ped"><div class="lbl fat-lbl">SOLICITAÇÃO<br>DE FATURAMENTO</div><div class="data">Data: '+dataStr+'</div></div>'+
-    '</div>'+
-    '<div class="cad"><div class="h">DADOS DA SOLICITAÇÃO</div>'+
-      '<div class="row"><div class="cell" style="flex:2"><b>Cliente</b>'+esc(cliente)+'</div><div class="cell" style="flex:1"><b>Consultor</b>'+esc(consultor)+'</div><div class="cell" style="flex:1"><b>Itens</b>'+nItens+'</div></div>'+
+    '<div class="fat-head">'+
+      '<div class="fat-titulo">SOLICITAÇÃO DE FATURAMENTO</div>'+
+      '<div class="fat-data">Data: '+dataStr+(consultor?('<br>Consultor: '+esc(consultor)):'')+'<br>Itens: '+nItens+'</div>'+
     '</div>'+
     '<div class="itens-wrap"><table class="itens"><thead><tr><th>Pedido</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
     '<div class="obs">Solicito o faturamento dos itens acima relacionados, conforme as quantidades indicadas na coluna "Qtd. a faturar". Documento gerado pelo sistema de cotações Setec Agro.'+
@@ -2574,10 +2586,10 @@ async function gerarPdfFaturamento(){
   const pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight(), margem=8;
   pdf.addImage(img,'JPEG',margem,margem,pageW-margem*2,pageH-margem*2);
   cont.innerHTML='';
-  const nomeArq='Solicitação Faturamento '+((cliente||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,40))+'.pdf';
+  const nomeArq='Solicitação Faturamento '+((clienteCad||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,40))+'.pdf';
   const blob=pdf.output('blob');
   let arquivo=null; try{ arquivo=new File([blob],nomeArq,{type:'application/pdf'}); }catch(_){}
-  return {blob, arquivo, nomeArq, titulo:'Solicitação de Faturamento - '+cliente};
+  return {blob, arquivo, nomeArq, titulo:'Solicitação de Faturamento - '+clienteCad};
 }
 
 // helper: código da loja -> chave de dadosLoja (reaproveita LOJAS por cidade)
