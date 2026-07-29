@@ -545,7 +545,9 @@ body.login-aberto{overflow:hidden}
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="q" type="text" placeholder="Buscar produto, princípio ativo ou fabricante...">
       </div>
+      <select id="campSelLista" class="pagsel" style="font-weight:700"><option value="">— Escolha a campanha —</option></select>
       <select id="pagSel" class="pagsel"></select>
+      <select id="pagDia" class="pagsel" style="max-width:90px"></select>
       <select id="fabSel"><option value="ALL">Todos fabricantes</option><option value="AGRICHEM">AGRICHEM</option><option value="ALBAUGH">ALBAUGH</option><option value="ALTA">ALTA</option><option value="ASCENZA">ASCENZA</option><option value="FMC">FMC</option><option value="LALLEMAND">LALLEMAND</option><option value="NORTOX">NORTOX</option><option value="OURO FINO">OURO FINO</option><option value="PILARQUIM">PILARQUIM</option><option value="RAINBOW">RAINBOW</option><option value="ROVENSA">ROVENSA</option><option value="SIMBIOSE">SIMBIOSE</option><option value="SIPCAM">SIPCAM</option><option value="SOLUS">SOLUS</option><option value="SYNGENTA">SYNGENTA</option><option value="TECNOMIL">TECNOMIL</option><option value="WILLIWOOD">WILLIWOOD</option></select>
       <select id="sortSel">
         <option value="ia">Ordenar: Princípio Ativo</option>
@@ -597,8 +599,16 @@ body.login-aberto{overflow:hidden}
           <input id="cotMun" type="text" placeholder="Cidade / UF">
         </div>
         <div class="cot-field">
+          <label for="campSelCot">Campanha</label>
+          <select id="campSelCot" class="pagsel" style="font-weight:700"><option value="">— Escolha a campanha —</option></select>
+        </div>
+        <div class="cot-field">
           <label for="cotPagSel">Condição de pagamento</label>
           <select id="cotPagSel" class="pagsel"></select>
+        </div>
+        <div class="cot-field">
+          <label for="pagDiaCot">Dia</label>
+          <select id="pagDiaCot" class="pagsel"></select>
         </div>
         <div class="cot-field">
           <label for="cotData">Data</label>
@@ -928,7 +938,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260728163730";
+window.APP_VERSION="20260729180219";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1002,6 +1012,12 @@ const LOGO_PED=(function(){
   return img ? img.getAttribute('src') : '';
 })();
 let TAXA=0.01; // 1% ao mês
+/* ===== CAMPANHAS (Etapa 2) ===== */
+let CAMPANHAS=[];          // [{id, nome, itens:[{fab,prod,ia,grupo,custo,venc,preco_venda}]}]
+let MARGENS_GRUPO={};      // { 'DEFENSIVO':0.20, 'ESPECIALIDADE':0.30, ... }
+let campanhaSel=null;      // id da campanha escolhida (lista de preços)
+let campanhaSelCot=null;   // id da campanha escolhida (nova cotação)
+const TAXA_DIA=0.01/30;    // 1% ao mês proporcional aos dias
 
 /* ================= SUPABASE ================= */
 const SB_URL='https://kahdclboqzyrugxwfvkl.supabase.co';
@@ -1059,6 +1075,77 @@ async function carregarMargens(){
     });
     const g=document.getElementById('mgGlobal'); if(g&&geral) g.value=fmtPct(geral.valor);
   }catch(e){ console.warn('carregarMargens',e); }
+}
+
+// ===== CAMPANHAS: carregar do banco (Etapa 2) =====
+async function carregarCampanhas(){
+  if(!sbOk) return;
+  try{
+    const {data:mg}=await sb.from('margens_grupo').select('*');
+    MARGENS_GRUPO={};
+    (mg||[]).forEach(r=>{ MARGENS_GRUPO[normGrupoV(r.grupo)]=+r.margem; });
+    const {data:camps}=await sb.from('campanhas').select('*').order('ordem',{ascending:true}).order('id',{ascending:true});
+    // itens paginados (limite de 1000 por consulta)
+    let itens=[], desde=0, bloco=1000;
+    while(true){
+      const {data:parte,error}=await sb.from('campanha_itens').select('*').order('id',{ascending:true}).range(desde,desde+bloco-1);
+      if(error) throw error;
+      if(!parte||!parte.length) break;
+      itens=itens.concat(parte);
+      if(parte.length<bloco) break;
+      desde+=bloco;
+    }
+    CAMPANHAS=(camps||[]).filter(c=>c.ativa!==false).map(c=>({
+      id:c.id, nome:c.nome,
+      itens:itens.filter(it=>it.campanha_id===c.id).map(it=>({
+        fab:it.fab||'', prod:it.prod||'', ia:it.ia||'', grupo:it.grupo||'',
+        custo:it.custo, venc:it.vencimento||'', unid:it.unidade||'LT',
+        preco_venda:(it.preco_venda!=null?+it.preco_venda:null)
+      }))
+    }));
+  }catch(e){ if(window.console)console.warn('carregarCampanhas',e); }
+}
+function normGrupoV(txt){
+  const g=(txt||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(g.includes('especialidad')) return 'ESPECIALIDADE';
+  if(g.includes('defensiv')||g.includes('defenciv')) return 'DEFENSIVO';
+  return (txt||'').toString().trim().toUpperCase();
+}
+function margemGrupoV(grupo){
+  const g=normGrupoV(grupo);
+  return (MARGENS_GRUPO[g]!=null)?MARGENS_GRUPO[g]:0.20;
+}
+function campanhaPorId(id){ return CAMPANHAS.find(c=>c.id===id)||null; }
+// venc "dd/mm/aaaa" ou "mm/aaaa" -> Date (dia 30 se sem dia)
+function vencToDate(venc){
+  if(!venc) return null;
+  const s=String(venc).trim();
+  let m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if(m) return new Date(+m[3],+m[2]-1,+m[1]);
+  let m2=/^(\d{1,2})\/(\d{4})$/.exec(s);
+  if(m2) return new Date(+m2[2],+m2[1]-1,30);
+  return null;
+}
+// dias entre a data de pagamento e o vencimento da campanha (negativo = antes = antecipa)
+function diasPagAteVenc(dataPag, venc){
+  const dv=vencToDate(venc); if(!dv||!dataPag) return 0;
+  return Math.round((dv-dataPag)/(1000*60*60*24));
+}
+// PREÇO na cotação: aplica 1%/dia (simples) sobre o CUSTO conforme dias até o venc, depois margem do grupo.
+// Se o item tem preco_venda fixo, usa ele ajustado da mesma forma pela data? -> preço fixo é no venc da tabela.
+function precoCampanhaItem(it, dataPag){
+  // dias entre pagamento e vencimento da campanha
+  const dias=diasPagAteVenc(dataPag, it.venc); // >0 => paga antes (antecipa, desconta); <0 => paga depois (acresce)
+  const ajuste=1 - (dias*TAXA_DIA); // antes do venc: desconta; depois: acresce
+  if(it.preco_venda!=null && it.preco_venda>0){
+    // preço fixo é o preço no vencimento da tabela; ajusta pela data de pagamento
+    return it.preco_venda*ajuste;
+  }
+  if(it.custo==null||it.custo<=0) return null;
+  const margem=margemGrupoV(it.grupo);
+  if(margem>=1||margem<0) return null;
+  const custoAjustado=it.custo*ajuste;
+  return custoAjustado/(1-margem);
 }
 
 // Salvar margem no banco (só admin)
@@ -1183,16 +1270,23 @@ function precoVenda(p){
 function fmtPct(m){return (m*100).toLocaleString('pt-BR',{maximumFractionDigits:2});}
 function parsePct(t){let v=(t||'').toString().replace('%','').replace(',','.').trim();const n=parseFloat(v);if(isNaN(n)||n<0||n>=100)return null;return n/100;}
 
-/* opções de pagamento: à vista + 24 meses à frente */
+/* opções de pagamento: mês/ano (à vista + meses à frente) e dia em passos de 5 */
+let pagDia=vinteOuHoje();
+function vinteOuHoje(){ return 20; } // dia padrão
+// monta a Date da condição de pagamento escolhida (ano, mês, dia)
+function dataPagAtual(){
+  const dia=Math.min(Math.max(parseInt(pagDia)||20,1),30);
+  return new Date(pagAno, pagMes-1, dia);
+}
 function buildPagSel(){
   const sel=document.getElementById('pagSel');
-  const LIM_ANO=2027, LIM_MES=4; // prazo máximo: abril/2027
+  const LIM_ANO=2028, LIM_MES=12; // permite postergar bem além do venc. da campanha
   const maxK=mesesEntre(HOJE.getFullYear(),HOJE.getMonth()+1,LIM_ANO,LIM_MES);
   let html='';
   for(let k=0;k<=Math.max(0,maxK);k++){
     const d=new Date(HOJE.getFullYear(),HOJE.getMonth()+k,1);
     const a=d.getFullYear(), m=d.getMonth()+1;
-    const label = k===0 ? 'À vista' : ('Pagto '+MESES[m-1]+'/'+a);
+    const label = k===0 ? ('À vista ('+MESES[m-1]+'/'+a+')') : (MESES[m-1]+'/'+a);
     html+='<option value="'+a+'-'+m+'"'+(k===0?' selected':'')+'>'+label+'</option>';
   }
   sel.innerHTML=html;
@@ -1201,14 +1295,53 @@ function buildPagSel(){
     pagAno=a; pagMes=m;
     render(); renderMargemProd();
   };
+  // seletor de dia (5,10,15,20,25,30) - existe nas duas telas
+  ['pagDia','pagDiaCot'].forEach(id=>{
+    const ds=document.getElementById(id);
+    if(!ds) return;
+    ds.innerHTML=[5,10,15,20,25,30].map(d=>'<option value="'+d+'"'+(d===pagDia?' selected':'')+'>dia '+d+'</option>').join('');
+    ds.onchange=e=>{ pagDia=parseInt(e.target.value)||20; syncPagCot(); render(); };
+  });
+}
+// sincroniza seletores de data entre as duas telas
+function syncPagCot(){
+  const a=document.getElementById('pagSel'), b=document.getElementById('pagSelCot');
+  if(a&&b){ b.value=a.value; }
+  const da=document.getElementById('pagDia'), db=document.getElementById('pagDiaCot');
+  if(da&&db){ db.value=da.value; }
 }
 function updatePagBar(){ /* faixa removida da tela inicial */ }
+// preenche os dois seletores de campanha (lista e cotação) e liga eventos
+function buildCampSelects(){
+  const opts='<option value="">— Escolha a campanha —</option>'+
+    CAMPANHAS.map(c=>'<option value="'+c.id+'">'+esc(c.nome)+' ('+c.itens.length+')</option>').join('');
+  const sL=document.getElementById('campSelLista');
+  if(sL){
+    sL.innerHTML=opts;
+    if(campanhaSel) sL.value=campanhaSel;
+    sL.onchange=e=>{ campanhaSel=e.target.value?(+e.target.value):null; render(); };
+  }
+  const sC=document.getElementById('campSelCot');
+  if(sC){
+    sC.innerHTML=opts;
+    if(campanhaSelCot) sC.value=campanhaSelCot;
+    sC.onchange=e=>{ campanhaSelCot=e.target.value?(+e.target.value):null; if(typeof renderCot==='function')renderCot(); };
+  }
+}
 
-/* ===== LISTA ===== */
+/* ===== LISTA (agora baseada em CAMPANHA) ===== */
+// itens da campanha selecionada, no formato usado pela lista
+function itensDaCampanhaLista(){
+  const c=campanhaPorId(campanhaSel);
+  if(!c) return [];
+  return c.itens.map(it=>({
+    fab:it.fab, prod:it.prod, ia:it.ia, cat:normGrupoV(it.grupo),
+    _it:it // referência ao item original p/ calcular preço
+  }));
+}
+function precoItemLista(row){ return precoCampanhaItem(row._it, dataPagAtual()); }
 function filtered(){
-  let r=PRODUTOS.filter(p=>{
-    // produtos marcados como ocultos não aparecem para consultores/gerentes
-    if(p.oculto && !ehAdmin) return false;
+  let r=itensDaCampanhaLista().filter(p=>{
     if(state.cat!=='ALL'&&p.cat!==state.cat)return false;
     if(state.fab!=='ALL'&&p.fab!==state.fab)return false;
     if(state.q){const q=norm(state.q);if(!(norm(p.prod).includes(q)||norm(p.ia).includes(q)||norm(p.fab).includes(q)))return false;}
@@ -1217,7 +1350,7 @@ function filtered(){
   const s=state.sort;
   r.sort((a,b)=>{
     if(s==='price-asc'||s==='price-desc'){
-      const av=precoVenda(a),bv=precoVenda(b);
+      const av=precoItemLista(a),bv=precoItemLista(b);
       const A=av?av:(s==='price-asc'?1e12:-1),B=bv?bv:(s==='price-asc'?1e12:-1);
       return s==='price-asc'?A-B:B-A;
     }
@@ -1229,20 +1362,27 @@ function filtered(){
 }
 function render(){
   updatePagBar();
-  const r=filtered();
-  const totalVisivel = ehAdmin ? PRODUTOS.length : PRODUTOS.filter(p=>!p.oculto).length;
-  document.getElementById('countLine').innerHTML='Exibindo <b>'+r.length+'</b> de '+totalVisivel+' produtos';
   const c=document.getElementById('content');
-  if(!r.length){c.innerHTML='<div class="empty"><p>Nenhum produto encontrado.</p></div>';return;}
+  const cl=document.getElementById('countLine');
+  if(!campanhaSel){
+    if(cl) cl.innerHTML='';
+    c.innerHTML='<div class="empty"><p>Selecione uma campanha acima para ver os produtos e preços.</p></div>';
+    return;
+  }
+  const r=filtered();
+  const camp=campanhaPorId(campanhaSel);
+  const totalCamp=camp?camp.itens.length:0;
+  if(cl) cl.innerHTML='Exibindo <b>'+r.length+'</b> de '+totalCamp+' produtos · Campanha: <b>'+esc(camp?camp.nome:'')+'</b>';
+  if(!r.length){c.innerHTML='<div class="empty"><p>Nenhum produto encontrado nesta campanha.</p></div>';return;}
   if(state.view==='grid'){
     c.innerHTML='<div class="grid">'+r.map(p=>{
-      const pv=precoVenda(p);
+      const pv=precoItemLista(p);
       const price=pv?('<span class="pc-price"><span class="cur">R$</span>'+brl(pv)+'</span>'):'';
-      return '<div class="pcard'+(p.oculto?' pc-oculto':'')+'"><div class="pc-top"><span class="pc-fab">'+esc(p.fab||'—')+'</span><span class="pc-cat">'+(p.oculto?'OCULTO':p.cat)+'</span></div><div class="pc-name">'+esc(p.prod||'—')+'</div>'+(p.ia?'<div class="pc-ia">'+esc(p.ia)+'</div>':'')+'<div class="pc-price-row">'+price+'</div></div>';
+      return '<div class="pcard"><div class="pc-top"><span class="pc-fab">'+esc(p.fab||'—')+'</span><span class="pc-cat">'+esc(p.cat||'')+'</span></div><div class="pc-name">'+esc(p.prod||'—')+'</div>'+(p.ia?'<div class="pc-ia">'+esc(p.ia)+'</div>':'')+'<div class="pc-price-row">'+price+'</div></div>';
     }).join('')+'</div>';
   }else{
     c.innerHTML='<div class="tbl-wrap"><table><thead><tr><th data-s="fab">Fabricante</th><th data-s="prod">Produto</th><th data-s="ia">Princípio Ativo</th><th data-s="price-asc" style="text-align:right">Preço</th></tr></thead><tbody>'+
-      r.map(p=>{const pv=precoVenda(p);return '<tr'+(p.oculto?' class="t-oculto"':'')+'><td class="t-fab">'+esc(p.fab||'—')+'</td><td class="t-name">'+esc(p.prod||'—')+(p.oculto?' <span class="t-tagoculto">OCULTO</span>':'')+'</td><td class="t-ia">'+esc(p.ia||'—')+'</td><td class="t-price">'+(pv?('<span class="cur">R$</span> '+brl(pv)):'')+'</td></tr>';}).join('')+'</tbody></table></div>';
+      r.map(p=>{const pv=precoItemLista(p);return '<tr><td class="t-fab">'+esc(p.fab||'—')+'</td><td class="t-name">'+esc(p.prod||'—')+'</td><td class="t-ia">'+esc(p.ia||'—')+'</td><td class="t-price">'+(pv?('<span class="cur">R$</span> '+brl(pv)):'')+'</td></tr>';}).join('')+'</tbody></table></div>';
     c.querySelectorAll('th[data-s]').forEach(th=>th.onclick=()=>{const s=th.dataset.s;if(s==='price-asc'){state.sort=state.sort==='price-asc'?'price-desc':'price-asc';}else state.sort=s;document.getElementById('sortSel').value=state.sort;render();});
   }
 }
@@ -1332,6 +1472,8 @@ document.getElementById('mgFabFilter').onchange=e=>{mgState.fab=e.target.value;r
 /* ===== COTAÇÃO ===== */
 let cotItens=[];            // {i, qtd, precoCot (null=usar sugerido)}
 let cotPagAno=HOJE.getFullYear(), cotPagMes=HOJE.getMonth()+1;
+let cotPagDia=20;
+function dataPagCot(){ const dia=Math.min(Math.max(parseInt(cotPagDia)||20,1),30); return new Date(cotPagAno, cotPagMes-1, dia); }
 
 function precoSugeridoCot(p){
   // mesmo cálculo, mas usando a condição de pagamento da cotação
@@ -1344,21 +1486,27 @@ function precoSugeridoCot(p){
 }
 function buildCotPagSel(){
   const sel=document.getElementById('cotPagSel');
-  const LIM_ANO=2027, LIM_MES=4;
+  const LIM_ANO=2028, LIM_MES=12;
   const maxK=mesesEntre(HOJE.getFullYear(),HOJE.getMonth()+1,LIM_ANO,LIM_MES);
   let html='';
   for(let k=0;k<=Math.max(0,maxK);k++){
     const d=new Date(HOJE.getFullYear(),HOJE.getMonth()+k,1);
     const a=d.getFullYear(), m=d.getMonth()+1;
-    const label = k===0 ? 'À vista' : ('Pagto '+MESES[m-1]+'/'+a);
+    const label = k===0 ? ('À vista ('+MESES[m-1]+'/'+a+')') : (MESES[m-1]+'/'+a);
     html+='<option value="'+a+'-'+m+'"'+(k===0?' selected':'')+'>'+label+'</option>';
   }
   sel.innerHTML=html;
   sel.onchange=e=>{
     const [a,m]=e.target.value.split('-').map(Number);
     cotPagAno=a; cotPagMes=m;
-    renderCot();  // recalcula sugeridos
+    renderCot();
   };
+  // seletor de dia da cotação (5..30)
+  const ds=document.getElementById('pagDiaCot');
+  if(ds){
+    ds.innerHTML=[5,10,15,20,25,30].map(d=>'<option value="'+d+'"'+(d===cotPagDia?' selected':'')+'>dia '+d+'</option>').join('');
+    ds.onchange=e=>{ cotPagDia=parseInt(e.target.value)||20; renderCot(); };
+  }
   // data de hoje
   const d=HOJE;
   const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
@@ -1368,16 +1516,19 @@ function renderSugestoes(termo, boxId, inputId){
   boxId=boxId||'cotSug'; inputId=inputId||'cotBusca';
   const box=document.getElementById(boxId);
   const q=norm(termo||'');
+  // exige campanha selecionada na cotação
+  const camp=campanhaPorId(campanhaSelCot);
+  if(!camp){
+    box.classList.add('on');
+    box.innerHTML='<div class="sug-vazio">Escolha a campanha no topo antes de adicionar produtos.</div>';
+    return;
+  }
   if(!q){ box.classList.remove('on'); box.innerHTML=''; return; }
-  const r=PRODUTOS.filter(p=>{
-    if(p.oculto && !ehAdmin) return false; // produtos ocultos não entram em cotação
-    return norm(p.prod).includes(q)||norm(p.ia).includes(q)||norm(p.fab).includes(q);
-  }).slice(0,30);
+  const r=camp.itens.filter(it=>norm(it.prod).includes(q)||norm(it.ia).includes(q)||norm(it.fab).includes(q)).slice(0,30);
   function limpar(){
     const inp=document.getElementById(inputId);
     if(inp) inp.value='';
     box.classList.remove('on'); box.innerHTML='';
-    // se veio da barra fixa, recolhe a barra também
     if(boxId==='cotSugFixa'){ const bf=document.getElementById('buscaFixa'); if(bf) bf.classList.remove('on'); }
   }
   const btnManual='<div class="sug-manual" id="sugManual_'+boxId+'"><span class="sm-ico">+</span><div><div class="sm-t">Adicionar "'+esc(termo)+'" manualmente</div><div class="sm-s">Você digita o preço na cotação</div></div></div>';
@@ -1387,24 +1538,34 @@ function renderSugestoes(termo, boxId, inputId){
   }
   if(!r.length){
     box.classList.add('on');
-    box.innerHTML='<div class="sug-vazio">Nenhum produto encontrado na lista.</div>'+btnManual;
+    box.innerHTML='<div class="sug-vazio">Nenhum produto encontrado nesta campanha.</div>'+btnManual;
     ligarManual();
     return;
   }
   box.classList.add('on');
-  box.innerHTML=r.map(p=>{
-    const pv=precoSugeridoCot(p);
-    return '<div class="sug-item" data-i="'+p._i+'"><div><div class="sug-fab">'+esc(p.fab||'')+'</div><div class="sug-nome">'+esc(p.prod||'')+'</div></div><div class="sug-preco">'+(pv?('R$ '+brl(pv)):'—')+'</div></div>';
+  box.innerHTML=r.map((it,idx)=>{
+    const pv=precoCampanhaItem(it, dataPagCot());
+    return '<div class="sug-item" data-camp-idx="'+idx+'"><div><div class="sug-fab">'+esc(it.fab||'')+'</div><div class="sug-nome">'+esc(it.prod||'')+'</div></div><div class="sug-preco">'+(pv?('R$ '+brl(pv)):'—')+'</div></div>';
   }).join('')+btnManual;
   ligarManual();
-  box.querySelectorAll('.sug-item').forEach(it=>it.onclick=()=>{
-    addItem(+it.dataset.i);
+  // guarda a lista filtrada para o clique
+  box._itensFiltrados=r;
+  box.querySelectorAll('.sug-item').forEach(el=>el.onclick=()=>{
+    const idx=+el.dataset.campIdx;
+    addItemCampanha(box._itensFiltrados[idx]);
     limpar();
   });
 }
 function addItem(i){
   if(cotItens.some(x=>!x.manual && x.i===i)){ alert('Este produto já está na cotação.'); return; }
   cotItens.push({i:i, qtd:'', precoCot:null});
+  renderCot();
+}
+// adiciona um item vindo da CAMPANHA (Etapa 2)
+function addItemCampanha(it){
+  if(!it) return;
+  if(cotItens.some(x=>x.campItem && norm(x.campItem.fab)===norm(it.fab) && norm(x.campItem.prod)===norm(it.prod))){ alert('Este produto já está na cotação.'); return; }
+  cotItens.push({campItem:it, qtd:'', precoCot:null, unid:it.unid||'LT'});
   renderCot();
 }
 /* item digitado manualmente (produto que não está na lista) */
@@ -1424,18 +1585,23 @@ function renderCot(){
   let total=0, totalSug=0;
   body.innerHTML=cotItens.map((it,idx)=>{
     const manual = !!it.manual;
-    const p = manual ? null : PRODUTOS[it.i];
-    const sug = manual ? null : precoSugeridoCot(p);
-    // preço cotação NÃO é preenchido automaticamente: começa vazio (usuário digita)
+    const ehCamp = !!it.campItem;
+    const p = (manual||ehCamp) ? null : PRODUTOS[it.i];
+    let sug;
+    if(ehCamp) sug=precoCampanhaItem(it.campItem, dataPagCot());
+    else if(manual) sug=null;
+    else sug=precoSugeridoCot(p);
     const precoCot=(it.precoCot!==null&&it.precoCot!==undefined)?it.precoCot:null;
-    const precoUsado=(precoCot!=null)?precoCot:sug; // para o subtotal usa o cotado; se vazio, usa sugerido como referência
+    const precoUsado=(precoCot!=null)?precoCot:sug;
     const sub=(precoUsado&&it.qtd)?precoUsado*it.qtd:0;
     total+=sub;
     if(sug&&it.qtd) totalSug+=sug*it.qtd;
-    const unidItem = manual ? (it.unid||'UN') : (p.unid||'LT');
+    const unidItem = manual ? (it.unid||'UN') : (ehCamp ? (it.campItem.unid||'LT') : (p.unid||'LT'));
     const cab = manual
       ? '<div class="ci-nome"><span class="ci-fab manual">Digitado</span><input class="nome-input" data-idx="'+idx+'" type="text" value="'+esc(it.nome||'')+'" placeholder="Nome do produto"></div>'
-      : '<div class="ci-nome"><span class="ci-fab">'+esc(p.fab||'')+'</span>'+esc(p.prod||'')+'</div>';
+      : (ehCamp
+        ? '<div class="ci-nome"><span class="ci-fab">'+esc(it.campItem.fab||'')+'</span>'+esc(it.campItem.prod||'')+'</div>'
+        : '<div class="ci-nome"><span class="ci-fab">'+esc(p.fab||'')+'</span>'+esc(p.prod||'')+'</div>');
     return '<div class="ci-card'+(manual?' ci-manual':'')+'">'+
       '<div class="ci-head">'+cab+
         '<button class="ci-del" data-idx="'+idx+'" title="Remover">✕</button></div>'+
@@ -1738,10 +1904,17 @@ function coletarDadosCotacao(){
     fazenda:document.getElementById('cotFazenda').value.trim(),
     cpf:document.getElementById('cotCpf').value.trim(),
     mun:document.getElementById('cotMun').value.trim(),
-    pagAno:cotPagAno, pagMes:cotPagMes,
+    pagAno:cotPagAno, pagMes:cotPagMes, pagDia:cotPagDia,
+    campanha:(campanhaPorId(campanhaSelCot)||{}).nome||'',
     itens:cotItens.map(it=>{
       if(it.manual){
         return {fab:'',prod:it.nome||'',ia:'',unid:it.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:null,preco:(it.precoCot!=null?it.precoCot:null),obs:it.obs||'',manual:true};
+      }
+      if(it.campItem){
+        const ci=it.campItem;
+        const sug=precoCampanhaItem(ci, dataPagCot());
+        const preco=(it.precoCot!=null)?it.precoCot:sug;
+        return {fab:ci.fab,prod:ci.prod,ia:ci.ia,unid:it.unid||ci.unid||'LT',cultura:it.cultura||'',qtd:it.qtd,sug:sug,preco:preco,obs:it.obs||''};
       }
       const p=PRODUTOS[it.i];
       const sug=precoSugeridoCot(p);
@@ -3181,7 +3354,8 @@ function showTab(t){
   const tc=document.getElementById('tabCarteira'); if(tc) tc.classList.toggle('on',t==='carteira');
   const te=document.getElementById('tabEstoque'); if(te) te.classList.toggle('on',t==='estoque');
   if(t==='margem'){renderMargemFab();renderMargemProd();}
-  if(t==='cotacao'){renderCot();}
+  if(t==='cotacao'){ buildCampSelects(); renderCot(); }
+  if(t==='list'){ buildCampSelects(); }
   if(t==='minhas'){renderMinhas();}
   if(t==='usuarios'){renderUsuarios();}
   if(t==='carteira'){renderCarteira();}
@@ -3209,6 +3383,8 @@ async function init(){
   try{ buildPagSel(); buildCotPagSel(); atualizarConsultorUI(); renderCot(); render(); }catch(e){ if(window.console)console.warn(e); }
   // carregar dados públicos (produtos/margens/vencimentos) do banco
   try{ await carregarProdutos(); await carregarMargens(); render(); }catch(e){ if(window.console)console.warn('carga inicial',e); }
+  // carregar campanhas (Etapa 2) e montar os seletores
+  try{ await carregarCampanhas(); buildCampSelects(); render(); }catch(e){ if(window.console)console.warn('carga campanhas',e); }
   // exigir login logo ao abrir: se já houver sessão, entra direto; senão, abre o login travado
   if(sbOk){
     try{
