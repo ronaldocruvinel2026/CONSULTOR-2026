@@ -938,7 +938,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260729180219";
+window.APP_VERSION="20260729191300";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1096,7 +1096,7 @@ async function carregarCampanhas(){
       desde+=bloco;
     }
     CAMPANHAS=(camps||[]).filter(c=>c.ativa!==false).map(c=>({
-      id:c.id, nome:c.nome,
+      id:c.id, nome:c.nome, venc_max:c.venc_max||'',
       itens:itens.filter(it=>it.campanha_id===c.id).map(it=>({
         fab:it.fab||'', prod:it.prod||'', ia:it.ia||'', grupo:it.grupo||'',
         custo:it.custo, venc:it.vencimento||'', unid:it.unidade||'LT',
@@ -1116,6 +1116,14 @@ function margemGrupoV(grupo){
   return (MARGENS_GRUPO[g]!=null)?MARGENS_GRUPO[g]:0.20;
 }
 function campanhaPorId(id){ return CAMPANHAS.find(c=>c.id===id)||null; }
+// teto de pagamento (ano,mês) a partir do venc_max da campanha; null se não definido
+function tetoPagamento(campId){
+  const c=campanhaPorId(campId);
+  if(!c||!c.venc_max) return null;
+  const dv=vencToDate(c.venc_max);
+  if(!dv) return null;
+  return {ano:dv.getFullYear(), mes:dv.getMonth()+1};
+}
 // venc "dd/mm/aaaa" ou "mm/aaaa" -> Date (dia 30 se sem dia)
 function vencToDate(venc){
   if(!venc) return null;
@@ -1280,7 +1288,9 @@ function dataPagAtual(){
 }
 function buildPagSel(){
   const sel=document.getElementById('pagSel');
-  const LIM_ANO=2028, LIM_MES=12; // permite postergar bem além do venc. da campanha
+  const teto=tetoPagamento(campanhaSel);
+  let LIM_ANO=2028, LIM_MES=12;
+  if(teto){ LIM_ANO=teto.ano; LIM_MES=teto.mes; }
   const maxK=mesesEntre(HOJE.getFullYear(),HOJE.getMonth()+1,LIM_ANO,LIM_MES);
   let html='';
   for(let k=0;k<=Math.max(0,maxK);k++){
@@ -1290,6 +1300,10 @@ function buildPagSel(){
     html+='<option value="'+a+'-'+m+'"'+(k===0?' selected':'')+'>'+label+'</option>';
   }
   sel.innerHTML=html;
+  // se a seleção atual passou do teto, volta para à vista
+  const valAtual=pagAno+'-'+pagMes;
+  if([...sel.options].some(o=>o.value===valAtual)){ sel.value=valAtual; }
+  else { pagAno=HOJE.getFullYear(); pagMes=HOJE.getMonth()+1; sel.selectedIndex=0; }
   sel.onchange=e=>{
     const [a,m]=e.target.value.split('-').map(Number);
     pagAno=a; pagMes=m;
@@ -1319,13 +1333,13 @@ function buildCampSelects(){
   if(sL){
     sL.innerHTML=opts;
     if(campanhaSel) sL.value=campanhaSel;
-    sL.onchange=e=>{ campanhaSel=e.target.value?(+e.target.value):null; render(); };
+    sL.onchange=e=>{ campanhaSel=e.target.value?(+e.target.value):null; buildPagSel(); render(); };
   }
   const sC=document.getElementById('campSelCot');
   if(sC){
     sC.innerHTML=opts;
     if(campanhaSelCot) sC.value=campanhaSelCot;
-    sC.onchange=e=>{ campanhaSelCot=e.target.value?(+e.target.value):null; if(typeof renderCot==='function')renderCot(); };
+    sC.onchange=e=>{ campanhaSelCot=e.target.value?(+e.target.value):null; buildCotPagSel(); if(typeof renderCot==='function')renderCot(); };
   }
 }
 
@@ -1486,7 +1500,9 @@ function precoSugeridoCot(p){
 }
 function buildCotPagSel(){
   const sel=document.getElementById('cotPagSel');
-  const LIM_ANO=2028, LIM_MES=12;
+  const teto=tetoPagamento(campanhaSelCot);
+  let LIM_ANO=2028, LIM_MES=12;
+  if(teto){ LIM_ANO=teto.ano; LIM_MES=teto.mes; }
   const maxK=mesesEntre(HOJE.getFullYear(),HOJE.getMonth()+1,LIM_ANO,LIM_MES);
   let html='';
   for(let k=0;k<=Math.max(0,maxK);k++){
@@ -1496,6 +1512,9 @@ function buildCotPagSel(){
     html+='<option value="'+a+'-'+m+'"'+(k===0?' selected':'')+'>'+label+'</option>';
   }
   sel.innerHTML=html;
+  const valAtualC=cotPagAno+'-'+cotPagMes;
+  if([...sel.options].some(o=>o.value===valAtualC)){ sel.value=valAtualC; }
+  else { cotPagAno=HOJE.getFullYear(); cotPagMes=HOJE.getMonth()+1; sel.selectedIndex=0; }
   sel.onchange=e=>{
     const [a,m]=e.target.value.split('-').map(Number);
     cotPagAno=a; cotPagMes=m;
