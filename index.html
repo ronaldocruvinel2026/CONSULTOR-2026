@@ -392,6 +392,8 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .est-head:hover{background:var(--leaf-soft)}
 .est-info{flex:1;min-width:0}
 .est-nome{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3}
+.est-fab{font-size:11.5px;color:var(--leaf);font-weight:700;margin-top:2px}
+.est-princ{font-size:11px;color:var(--muted);margin-top:1px;font-style:italic}
 .est-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
 .est-qtd{font-size:17px;font-weight:800;color:var(--leaf-dark);white-space:nowrap;text-align:right}
 .est-qtd span{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
@@ -863,7 +865,7 @@ body.login-aberto{overflow:hidden}
 
       <div id="estImport" class="cart-import" style="display:none">
         <div class="ci-titulo">Importar estoque (somente administrador)</div>
-        <div class="ci-desc">Exporte no SIAGRI o relatório <b>Fatu401 - Posição Diária do Estoque</b> (ou o Fatu4181) em Excel. Escolha a empresa correspondente: importar uma <b>não apaga</b> os dados da outra.</div>
+        <div class="ci-desc">Exporte no SIAGRI o relatório de estoque em Excel (Posição Diária). O sistema lê descrição, saldo, unidade, empresa, fabricante (parceiro) e princípio ativo. Escolha a empresa correspondente: importar uma <b>não apaga</b> os dados da outra.</div>
         <div class="imp-botoes">
           <label class="imp-btn setec">
             <span>Importar estoque SETEC</span>
@@ -938,7 +940,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260729191300";
+window.APP_VERSION="20260730164645";
 (function(){
   function checarAtualizacao(){
     try{
@@ -3179,7 +3181,7 @@ function estoqueAgrupado(filtroOrigem){
   estoque.forEach(l=>{
     if(filtroOrigem && filtroOrigem!=='TODAS' && (l.origem||'SETEC')!==filtroOrigem) return;
     const k=l.produto_cod||l.produto_desc;
-    if(!m[k]) m[k]={cod:l.produto_cod, desc:l.produto_desc, unid:l.unidade, forn:l.fornecedor, total:0, lojas:{}};
+    if(!m[k]) m[k]={cod:l.produto_cod, desc:l.produto_desc, unid:l.unidade, forn:l.fornecedor, princ:l.principio||'', total:0, lojas:{}};
     const q=+l.quantidade||0;
     m[k].total+=q;
     // cada código é uma loja distinta (1-5 = JSM, 10-13 = SETEC), não se somam
@@ -3209,7 +3211,7 @@ function renderEstoque(){
 
   if(estFiltro==='com') itens=itens.filter(i=>i.total>0);
   const q=norm(estBusca);
-  if(q) itens=itens.filter(i=>norm(i.desc||'').includes(q)||String(i.cod||'').includes(q)||norm(i.forn||'').includes(q));
+  if(q) itens=itens.filter(i=>norm(i.desc||'').includes(q)||String(i.cod||'').includes(q)||norm(i.forn||'').includes(q)||norm(i.princ||'').includes(q));
 
   const lojasAtivas=new Set();
   estoque.forEach(l=>{ if((+l.quantidade||0)>0) lojasAtivas.add(nomeEmpresa(+l.empresa)); });
@@ -3236,7 +3238,9 @@ function renderEstoque(){
     return '<div class="est-card'+(temSaldo?'':' sem-saldo')+'" data-k="'+esc(k)+'">'+
       '<div class="est-head" data-tog="'+esc(k)+'">'+
         '<div class="est-info"><div class="est-nome">'+esc(i.desc||'')+'</div>'+
-        '<div class="est-meta">Cód. '+esc(i.cod||'—')+(i.forn?(' · '+esc(i.forn)):'')+'</div></div>'+
+        (i.forn?('<div class="est-fab">'+esc(i.forn)+'</div>'):'')+
+        (i.princ?('<div class="est-princ">I.A.: '+esc(i.princ)+'</div>'):'')+
+        '<div class="est-meta">Cód. '+esc(i.cod||'—')+'</div></div>'+
         '<div class="est-qtd'+(temSaldo?'':' zero')+'">'+brl(i.total)+'<span>'+esc(i.unid||'')+'</span></div>'+
         '<span class="est-seta'+(aberto?' on':'')+'">▾</span>'+
       '</div>'+detalhe+'</div>';
@@ -3289,7 +3293,8 @@ function importarEstoque(ev, origem){
         desc:    acharCol(H,['descricao do produto']),
         unid:    acharCol(H,['abreviatura da unidade','unidade']),
         qtd:     acharCol(H,['qtde minima compra','quantidade','saldo','estoque']),
-        forn:    acharCol(H,['razao social','fabricante']),
+        forn:    acharCol(H,['descricao do parceiro','parceiro ator interessado','razao social','fabricante']),
+        princ:   acharCol(H,['descricao do principio','principio ativo','principio']),
         ctrl:    -1
       } : {
         empresa: acharCol(H,['empresa']),
@@ -3298,7 +3303,8 @@ function importarEstoque(ev, origem){
         unid:    acharCol(H,['unidade']),
         ctrl:    cCtrl,
         qtd:     acharCol(H,['quantidade']),
-        forn:    acharCol(H,['razao social'])
+        forn:    acharCol(H,['descricao do parceiro','parceiro ator interessado','razao social','fabricante']),
+        princ:   acharCol(H,['descricao do principio','principio ativo','principio'])
       };
       if(c.desc<0||c.qtd<0){ estStatus('err','Não reconheci o formato. Use o relatório Fatu401 (Posição Diária do Estoque) ou Fatu4181 exportado em Excel.'); return; }
 
@@ -3327,6 +3333,7 @@ function importarEstoque(ev, origem){
           produto_desc:desc,
           unidade:String(V(row,c.unid)||''),
           fornecedor:c.forn>=0?String(V(row,c.forn)||''):'',
+          principio:c.princ>=0?String(V(row,c.princ)||''):'',
           quantidade:numero(V(row,c.qtd)),
           origem:origem
         });
