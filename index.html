@@ -940,7 +940,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260730164645";
+window.APP_VERSION="20260730180532";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1753,7 +1753,9 @@ async function aoLogar(user){
     try{
       const {data:perf}=await sb.from('perfis').select('papel,gerente_id,nome,loja,vendedor_siagri').eq('id',user.id).maybeSingle();
       if(perf){
-        if(!ehAdmin) meuPapel=perf.papel||'consultor';
+        meuPapel=perf.papel||meuPapel;
+        // o papel "admin" definido no painel de usuários concede acesso de administrador
+        if(meuPapel==='admin') ehAdmin=true;
         meuGerenteId=perf.gerente_id||null;
         meuLoja=perf.loja||LOJA_PADRAO;
         meuVendedorSiagri=perf.vendedor_siagri||null;
@@ -2477,15 +2479,26 @@ async function renderUsuarios(){
   // excluir
   list.querySelectorAll('[data-delusr]').forEach(b=>b.onclick=async ()=>{
     const id=b.dataset.delusr;
+    const perf=perfisCache.find(x=>x.id===id);
+    const nome=perf?(perf.nome||perf.email||'este usuário'):'este usuário';
     if(b.dataset.confirm==='1'){
+      b.textContent='Excluindo...'; b.disabled=true;
       try{
-        const {error}=await sb.from('perfis').delete().eq('id',id);
+        const {error, count}=await sb.from('perfis').delete({count:'exact'}).eq('id',id);
         if(error) throw error;
+        if(count===0){
+          alert('O banco não permitiu a exclusão (nenhuma linha removida). Provavelmente falta uma política de exclusão (RLS) na tabela "perfis". Me avise que eu te passo o SQL.');
+          b.disabled=false; b.dataset.confirm='0'; b.textContent='Excluir'; b.classList.remove('confirming');
+          return;
+        }
         await renderUsuarios();
-      }catch(e){ alert('Erro ao excluir: '+(e.message||e)); }
+      }catch(e){
+        alert('Erro ao excluir "'+nome+'": '+(e.message||e));
+        b.disabled=false; b.dataset.confirm='0'; b.textContent='Excluir'; b.classList.remove('confirming');
+      }
     }else{
-      b.dataset.confirm='1'; b.textContent='Confirmar?'; b.classList.add('confirming');
-      setTimeout(()=>{ if(b){ b.dataset.confirm='0'; b.textContent='Excluir'; b.classList.remove('confirming'); } },3500);
+      b.dataset.confirm='1'; b.textContent='Confirmar exclusão?'; b.classList.add('confirming');
+      setTimeout(()=>{ if(b&&b.dataset.confirm==='1'){ b.dataset.confirm='0'; b.textContent='Excluir'; b.classList.remove('confirming'); } },4000);
     }
   });
 }
