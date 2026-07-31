@@ -946,7 +946,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260731193959";
+window.APP_VERSION="20260731210312";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1039,6 +1039,7 @@ let usuario=null;      // {id, email, nome}
 let ehAdmin=false;
 let meuPapel='consultor';   // 'admin' | 'gerente' | 'consultor'
 let meuGerenteId=null;      // se consultor, id do gerente
+let equipeVendedores=null;  // se gerente, Set com nomes de vendedor da equipe (normalizados)
 let meuLoja=LOJA_PADRAO;    // loja/filial do usuário logado
 let listaGerentes=[];       // [{id, nome}] para o seletor de cadastro
 let adminCreds=null;        // guarda {email, senha} do admin para re-logar após criar usuário
@@ -1773,6 +1774,21 @@ async function aoLogar(user){
         meuLoja=perf.loja||LOJA_PADRAO;
         meuVendedorSiagri=perf.vendedor_siagri||null;
         if(perf.nome) usuario.nome=perf.nome;
+      }
+      // se for gerente, carregar os vendedores da equipe (consultores com gerente_id = ele)
+      equipeVendedores=null;
+      if(meuPapel==='gerente'){
+        try{
+          const {data:eq}=await sb.from('perfis').select('nome,vendedor_siagri').eq('gerente_id',user.id);
+          equipeVendedores=new Set();
+          // inclui o próprio gerente e cada membro da equipe (por vendedor_siagri e por nome)
+          if(meuVendedorSiagri) equipeVendedores.add(norm(meuVendedorSiagri));
+          if(usuario.nome) equipeVendedores.add(norm(usuario.nome));
+          (eq||[]).forEach(p=>{
+            if(p.vendedor_siagri) equipeVendedores.add(norm(p.vendedor_siagri));
+            if(p.nome) equipeVendedores.add(norm(p.nome));
+          });
+        }catch(e){ console.warn('equipe load',e); equipeVendedores=new Set(); }
       }
     }catch(e){ console.warn('perfil load',e); }
   }
@@ -2559,7 +2575,13 @@ async function carregarCarteira(){
 
 // quem pode ver o quê: consultor vê a dele; gerente e admin veem todos
 function carteiraVisivel(){
-  if(ehAdmin || meuPapel==='gerente') return carteira;
+  if(ehAdmin) return carteira; // admin vê tudo
+  if(meuPapel==='gerente'){
+    // gerente vê só os vendedores da equipe dele
+    const eq=equipeVendedores;
+    if(!eq||!eq.size) return [];
+    return carteira.filter(l=>eq.has(norm(l.vendedor_nome||'')));
+  }
   const meu=norm(meuVendedorSiagri||usuario&&usuario.nome||'');
   if(!meu) return [];
   return carteira.filter(l=>norm(l.vendedor_nome||'')===meu);
@@ -2587,11 +2609,13 @@ function renderCarteira(){
     return;
   }
 
-  // preencher filtro de vendedores (só para quem vê todos)
+  // preencher filtro de vendedores (só para quem vê todos ou a equipe)
   const selV=document.getElementById('cartVendFiltro');
   if(ehAdmin||meuPapel==='gerente'){
     selV.style.display='';
-    const vends=[...new Set(carteira.map(l=>l.vendedor_nome).filter(Boolean))].sort();
+    // gerente: só os vendedores que aparecem na carteira visível dele
+    const base = ehAdmin ? carteira : carteiraVisivel();
+    const vends=[...new Set(base.map(l=>l.vendedor_nome).filter(Boolean))].sort();
     if(selV.options.length!==vends.length+1){
       selV.innerHTML='<option value="ALL">Todos os vendedores</option>'+vends.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
       selV.value=cartVend;
