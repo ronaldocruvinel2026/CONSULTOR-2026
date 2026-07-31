@@ -946,7 +946,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260731191659";
+window.APP_VERSION="20260731193959";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1341,7 +1341,14 @@ function buildCampSelects(){
   if(sL){
     sL.innerHTML=opts;
     if(campanhaSel) sL.value=campanhaSel;
-    sL.onchange=e=>{ campanhaSel=e.target.value?(+e.target.value):null; buildPagSel(); render(); };
+    sL.onchange=e=>{
+      campanhaSel=e.target.value?(+e.target.value):null;
+      // padrão: ao escolher a campanha, joga o vencimento para a data máxima dela (dia 20)
+      const teto=tetoPagamento(campanhaSel);
+      if(teto){ pagAno=teto.ano; pagMes=teto.mes; pagDia=20; }
+      buildPagSel();
+      render();
+    };
   }
   const sC=document.getElementById('campSelCot');
   if(sC){
