@@ -940,7 +940,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260730180532";
+window.APP_VERSION="20260731142257";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1905,7 +1905,21 @@ async function carregarCotacoes(){
   if(!sbOk||!usuario){ cotSalvas=[]; return; }
   try{
     let q=sb.from('cotacoes').select('*').order('criada_em',{ascending:false});
-    // RLS já filtra: consultor vê as dele, admin vê todas
+    // filtro por papel: admin vê todas; gerente vê a própria equipe; consultor vê só as dele
+    if(meuPapel==='admin' || ehAdmin){
+      // sem filtro: todas
+    } else if(meuPapel==='gerente'){
+      // as do gerente + as dos consultores cuja gerente_id é ele
+      let idsEquipe=[usuario.id];
+      try{
+        const {data:eq}=await sb.from('perfis').select('id').eq('gerente_id',usuario.id);
+        (eq||[]).forEach(p=>{ if(p.id) idsEquipe.push(p.id); });
+      }catch(_){}
+      q=q.in('user_id', idsEquipe);
+    } else {
+      // consultor: só as próprias
+      q=q.eq('user_id', usuario.id);
+    }
     const {data,error}=await q;
     if(error) throw error;
     cotSalvas=(data||[]).map(r=>({
