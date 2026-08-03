@@ -143,6 +143,8 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .usr-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
 .usr-card.alerta{border-color:#e5b3a5;background:#fef7f4}
 .usr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.usr-topbtns{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.mc-btn.confirming{background:var(--gold-soft);border-color:var(--gold);color:#8a6d1f}
 .usr-nome{font-size:15px;font-weight:700}
 .usr-nome-input{width:100%;font-size:15px;font-weight:700;color:var(--ink);font-family:inherit;padding:6px 8px;border:1.5px dashed var(--line);border-radius:8px;background:#fff;outline:none}
 .usr-nome-input:focus{border-style:solid;border-color:var(--leaf);background:var(--leaf-soft)}
@@ -946,7 +948,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260731210312";
+window.APP_VERSION="20260803125650";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2470,7 +2472,8 @@ async function renderUsuarios(){
     const semCarteira = (p.papel==='consultor' && !p.gerente_id);
     return '<div class="usr-card'+(semCarteira?' alerta':'')+'">'+
       '<div class="usr-top"><div style="flex:1;min-width:180px"><input class="usr-nome-input" data-id="'+p.id+'" type="text" value="'+esc(p.nome||'')+'" placeholder="Nome do usuário"><div class="usr-email">'+esc(p.email||'')+'</div></div>'+
-        '<button class="mc-btn danger" data-delusr="'+p.id+'">Excluir</button></div>'+
+        '<div class="usr-topbtns"><button class="mc-btn" data-resetsenha="'+p.id+'" data-email="'+esc(p.email||'')+'">Redefinir senha</button>'+
+        '<button class="mc-btn danger" data-delusr="'+p.id+'">Excluir</button></div></div>'+
       '<div class="usr-grid">'+
         '<div class="usr-field"><label>Função</label><select class="usr-papel" data-id="'+p.id+'">'+
           '<option value="consultor"'+(p.papel==='consultor'?' selected':'')+'>Consultor</option>'+
@@ -2518,6 +2521,26 @@ async function renderUsuarios(){
   list.querySelectorAll('.usr-siagri').forEach(inp=>{
     inp.onchange=async ()=>{ await salvarPerfil(inp.dataset.id, {vendedor_siagri: (inp.value||'').trim()||null}); };
     inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
+  });
+  // redefinir senha (envia email de recuperação)
+  list.querySelectorAll('[data-resetsenha]').forEach(b=>b.onclick=async ()=>{
+    const email=b.dataset.email;
+    if(!email){ alert('Este usuário não tem email cadastrado.'); return; }
+    if(b.dataset.confirm==='1'){
+      b.textContent='Enviando...'; b.disabled=true;
+      try{
+        const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+        if(error) throw error;
+        b.textContent='✓ Email enviado';
+        setTimeout(()=>{ if(b){ b.textContent='Redefinir senha'; b.disabled=false; b.dataset.confirm='0'; b.classList.remove('confirming'); } },3000);
+      }catch(e){
+        alert('Erro ao enviar email de redefinição: '+(e.message||e));
+        b.textContent='Redefinir senha'; b.disabled=false; b.dataset.confirm='0'; b.classList.remove('confirming');
+      }
+    }else{
+      b.dataset.confirm='1'; b.textContent='Confirmar envio?'; b.classList.add('confirming');
+      setTimeout(()=>{ if(b&&b.dataset.confirm==='1'){ b.dataset.confirm='0'; b.textContent='Redefinir senha'; b.classList.remove('confirming'); } },4000);
+    }
   });
   // excluir
   list.querySelectorAll('[data-delusr]').forEach(b=>b.onclick=async ()=>{
