@@ -400,6 +400,7 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .est-head:hover{background:var(--leaf-soft)}
 .est-info{flex:1;min-width:0}
 .est-nome{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3}
+.est-atualizado{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:10px;text-align:right}
 .est-fab{font-size:11.5px;color:var(--leaf);font-weight:700;margin-top:2px}
 .est-princ{font-size:11px;color:var(--muted);margin-top:1px;font-style:italic}
 .est-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
@@ -893,15 +894,8 @@ body.login-aberto{overflow:hidden}
           <input id="estBusca" type="text" placeholder="Buscar produto ou código...">
         </div>
       </div>
-      <div class="mc-filtros">
-        <button class="mc-fbtn on" data-ef="com">Com saldo</button>
-        <button class="mc-fbtn" data-ef="todos">Todos</button>
-        <span class="filtro-sep"></span>
-        <button class="mc-fbtn on" data-eorig="TODAS">Ambas</button>
-        <button class="mc-fbtn" data-eorig="SETEC">SETEC</button>
-        <button class="mc-fbtn" data-eorig="JSM">JSM</button>
-      </div>
 
+      <div id="estAtualizado" class="est-atualizado"></div>
       <div id="estResumo" class="cart-resumo"></div>
       <div id="estList" class="mc-list"></div>
     </div>
@@ -948,7 +942,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260803125650";
+window.APP_VERSION="20260803183636";
 (function(){
   function checarAtualizacao(){
     try{
@@ -3296,6 +3290,20 @@ function renderEstoque(){
   const totalProdutos=itens.length;
   const comSaldo=itens.filter(i=>i.total>0).length;
 
+  // data/hora da última importação (registro mais recente)
+  const elAt=document.getElementById('estAtualizado');
+  if(elAt){
+    let maisRecente=null;
+    estoque.forEach(l=>{ if(l.importada_em){ const d=new Date(l.importada_em); if(!maisRecente||d>maisRecente) maisRecente=d; } });
+    if(maisRecente){
+      const dd=String(maisRecente.getDate()).padStart(2,'0');
+      const mm=String(maisRecente.getMonth()+1).padStart(2,'0');
+      const hh=String(maisRecente.getHours()).padStart(2,'0');
+      const mi=String(maisRecente.getMinutes()).padStart(2,'0');
+      elAt.textContent='Atualizado em '+dd+'/'+mm+'/'+maisRecente.getFullYear()+' '+hh+':'+mi;
+    } else { elAt.textContent=''; }
+  }
+
   if(estFiltro==='com') itens=itens.filter(i=>i.total>0);
   const q=norm(estBusca);
   if(q) itens=itens.filter(i=>norm(i.desc||'').includes(q)||String(i.cod||'').includes(q)||norm(i.forn||'').includes(q)||norm(i.princ||'').includes(q));
@@ -3340,12 +3348,6 @@ function renderEstoque(){
   });
 }
 
-document.querySelectorAll('#estoqueView [data-ef]').forEach(b=>{
-  b.onclick=()=>{ estFiltro=b.dataset.ef; document.querySelectorAll('#estoqueView [data-ef]').forEach(x=>x.classList.toggle('on',x===b)); renderEstoque(); };
-});
-document.querySelectorAll('#estoqueView [data-eorig]').forEach(b=>{
-  b.onclick=()=>{ estOrigem=b.dataset.eorig; document.querySelectorAll('#estoqueView [data-eorig]').forEach(x=>x.classList.toggle('on',x===b)); renderEstoque(); };
-});
 document.getElementById('estBusca').oninput=e=>{ estBusca=e.target.value; renderEstoque(); };
 
 /* ---- importação do estoque ---- */
@@ -3427,6 +3429,8 @@ function importarEstoque(ev, origem){
       }
       if(!registros.length){ estStatus('err','Nenhuma linha de estoque encontrada na planilha.'); return; }
 
+      const agoraISO=new Date().toISOString();
+      registros.forEach(r=>{ r.importada_em=agoraISO; });
       estStatus('','Enviando '+registros.length+' registro(s) da '+origem+'...');
       // substitui apenas os dados desta empresa, preservando a outra
       const del=await sb.from('estoque').delete().eq('origem',origem);
