@@ -942,7 +942,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260803183636";
+window.APP_VERSION="20260803190412";
 (function(){
   function checarAtualizacao(){
     try{
@@ -3496,8 +3496,54 @@ document.getElementById('vGrid').onclick=()=>{state.view='grid';document.getElem
 document.getElementById('vTable').onclick=()=>{state.view='table';document.getElementById('vTable').classList.add('on');document.getElementById('vGrid').classList.remove('on');render();};
 document.querySelectorAll('.chip').forEach(ch=>ch.onclick=()=>{state.cat=ch.dataset.cat;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x.dataset.cat===state.cat));render();});
 
+// tela para o usuário definir a nova senha (após clicar no link do email)
+function mostrarTelaNovaSenha(){
+  if(document.getElementById('novaSenhaBg')) return; // já aberta
+  const bg=document.createElement('div');
+  bg.id='novaSenhaBg';
+  bg.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(18,33,26,.9);display:flex;align-items:center;justify-content:center;padding:20px';
+  bg.innerHTML=
+    '<div style="background:#fff;border-radius:16px;max-width:400px;width:100%;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.4)">'+
+      '<h2 style="color:var(--leaf-dark);font-size:20px;margin-bottom:6px">Definir nova senha</h2>'+
+      '<p style="color:var(--muted);font-size:13.5px;margin-bottom:18px">Digite a nova senha para sua conta Setec Agro.</p>'+
+      '<input id="nsInput1" type="password" placeholder="Nova senha (mín. 6 caracteres)" style="width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;margin-bottom:10px;outline:none;font-family:inherit">'+
+      '<input id="nsInput2" type="password" placeholder="Repita a nova senha" style="width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;margin-bottom:8px;outline:none;font-family:inherit">'+
+      '<div id="nsMsg" style="font-size:13px;font-weight:700;min-height:20px;margin-bottom:10px"></div>'+
+      '<button id="nsBtn" class="btn" style="width:100%;justify-content:center;padding:13px">Salvar nova senha</button>'+
+    '</div>';
+  document.body.appendChild(bg);
+  const msg=document.getElementById('nsMsg');
+  document.getElementById('nsBtn').onclick=async ()=>{
+    const s1=document.getElementById('nsInput1').value;
+    const s2=document.getElementById('nsInput2').value;
+    if(s1.length<6){ msg.style.color='var(--danger)'; msg.textContent='A senha precisa ter pelo menos 6 caracteres.'; return; }
+    if(s1!==s2){ msg.style.color='var(--danger)'; msg.textContent='As senhas não coincidem.'; return; }
+    const btn=document.getElementById('nsBtn'); btn.disabled=true; btn.textContent='Salvando...';
+    try{
+      const {error}=await sb.auth.updateUser({password:s1});
+      if(error) throw error;
+      msg.style.color='var(--leaf-dark)'; msg.textContent='✓ Senha alterada! Redirecionando...';
+      try{ await sb.auth.signOut(); }catch(_){}
+      setTimeout(()=>{ location.href=location.origin+location.pathname; },1500);
+    }catch(e){
+      msg.style.color='var(--danger)'; msg.textContent='Erro: '+(e.message||e);
+      btn.disabled=false; btn.textContent='Salvar nova senha';
+    }
+  };
+}
+
 async function init(){
   try{ buildPagSel(); buildCotPagSel(); atualizarConsultorUI(); renderCot(); render(); }catch(e){ if(window.console)console.warn(e); }
+  // detectar retorno do link de redefinição de senha (vem com type=recovery na URL)
+  const hashRec=(location.hash||'').indexOf('type=recovery')>=0;
+  if(sbOk && hashRec){
+    sb.auth.onAuthStateChange((evt)=>{
+      if(evt==='PASSWORD_RECOVERY' || hashRec){ mostrarTelaNovaSenha(); }
+    });
+    // fallback: mostra a tela mesmo se o evento não disparar
+    setTimeout(mostrarTelaNovaSenha, 800);
+    return;
+  }
   // carregar dados públicos (produtos/margens/vencimentos) do banco
   try{ await carregarProdutos(); await carregarMargens(); render(); }catch(e){ if(window.console)console.warn('carga inicial',e); }
   // carregar campanhas (Etapa 2) e montar os seletores
