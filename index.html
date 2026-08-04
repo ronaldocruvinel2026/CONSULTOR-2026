@@ -942,7 +942,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260803190412";
+window.APP_VERSION="20260804011949";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1029,7 +1029,7 @@ const SB_KEY='sb_publishable_qkQsCL8qJdoX-0-cJIzuew_3pltLueR';
 const EMAIL_ADMIN='ronaldo@setecagro.com';
 const SENHA_CADASTRO='admin2026';
 let sb=null, sbOk=false;
-try{ if(window.supabase&&window.supabase.createClient){ sb=window.supabase.createClient(SB_URL,SB_KEY); sbOk=true; } }catch(e){ console.warn('Supabase off',e); }
+try{ if(window.supabase&&window.supabase.createClient){ sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{detectSessionInUrl:true,flowType:'implicit',autoRefreshToken:true,persistSession:true}}); sbOk=true; } }catch(e){ console.warn('Supabase off',e); }
 
 let usuario=null;      // {id, email, nome}
 let ehAdmin=false;
@@ -3532,18 +3532,17 @@ function mostrarTelaNovaSenha(){
   };
 }
 
+// registrar listener de recuperação de senha O MAIS CEDO POSSÍVEL (antes do init)
+if(typeof sb!=='undefined' && sb && sb.auth){
+  sb.auth.onAuthStateChange((evt, session)=>{
+    if(evt==='PASSWORD_RECOVERY'){
+      mostrarTelaNovaSenha();
+    }
+  });
+}
+
 async function init(){
   try{ buildPagSel(); buildCotPagSel(); atualizarConsultorUI(); renderCot(); render(); }catch(e){ if(window.console)console.warn(e); }
-  // detectar retorno do link de redefinição de senha (vem com type=recovery na URL)
-  const hashRec=(location.hash||'').indexOf('type=recovery')>=0;
-  if(sbOk && hashRec){
-    sb.auth.onAuthStateChange((evt)=>{
-      if(evt==='PASSWORD_RECOVERY' || hashRec){ mostrarTelaNovaSenha(); }
-    });
-    // fallback: mostra a tela mesmo se o evento não disparar
-    setTimeout(mostrarTelaNovaSenha, 800);
-    return;
-  }
   // carregar dados públicos (produtos/margens/vencimentos) do banco
   try{ await carregarProdutos(); await carregarMargens(); render(); }catch(e){ if(window.console)console.warn('carga inicial',e); }
   // carregar campanhas (Etapa 2) e montar os seletores
