@@ -742,7 +742,17 @@ body.login-aberto{overflow:hidden}
       <input id="loginPass" type="password" autocomplete="current-password" placeholder="Sua senha">
       <div class="login-err" id="loginErr">E-mail ou senha incorretos.</div>
       <button class="btn" id="loginBtn">Entrar</button>
-      <p style="margin-top:16px;text-align:center"><a href="#" id="linkCadastro" style="color:var(--leaf);font-size:13px;font-weight:600">Cadastrar novo consultor (admin)</a></p>
+      <p style="margin-top:14px;text-align:center"><a href="#" id="linkEsqueci" style="color:var(--leaf);font-size:13px;font-weight:600">Esqueci minha senha</a></p>
+      <p style="margin-top:8px;text-align:center"><a href="#" id="linkCadastro" style="color:var(--leaf);font-size:13px;font-weight:600">Cadastrar novo consultor (admin)</a></p>
+    </div>
+    <div id="esqueciView" style="display:none">
+      <h3>Redefinir senha</h3>
+      <p>Digite o e-mail cadastrado. Enviaremos um link para você criar uma nova senha.</p>
+      <label for="esqEmail">E-mail cadastrado</label>
+      <input id="esqEmail" type="email" autocomplete="username" placeholder="seu@email.com">
+      <div class="login-err" id="esqMsg" style="display:none"></div>
+      <button class="btn" id="esqBtn">Enviar link de redefinição</button>
+      <p style="margin-top:16px;text-align:center"><a href="#" id="linkVoltarLogin2" style="color:var(--leaf);font-size:13px;font-weight:600">← Voltar para o login</a></p>
     </div>
     <div id="cadastroView" style="display:none">
       <h3>Cadastrar consultor</h3>
@@ -942,7 +952,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260804011949";
+window.APP_VERSION="20260806135158";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1900,6 +1910,27 @@ document.getElementById('loginBtn').onclick=fazerLogin;
 document.getElementById('loginPass').onkeydown=e=>{ if(e.key==='Enter') fazerLogin(); };
 document.getElementById('linkCadastro').onclick=e=>{ e.preventDefault(); document.getElementById('loginView').style.display='none'; document.getElementById('cadastroView').style.display='block'; carregarGerentes(); atualizarCadGerenteUI(); };
 document.getElementById('linkVoltarLogin').onclick=e=>{ e.preventDefault(); document.getElementById('loginView').style.display='block'; document.getElementById('cadastroView').style.display='none'; };
+// esqueci minha senha
+document.getElementById('linkEsqueci').onclick=e=>{ e.preventDefault(); document.getElementById('loginView').style.display='none'; document.getElementById('esqueciView').style.display='block'; const em=document.getElementById('loginEmail').value.trim(); if(em) document.getElementById('esqEmail').value=em; };
+document.getElementById('linkVoltarLogin2').onclick=e=>{ e.preventDefault(); document.getElementById('esqueciView').style.display='none'; document.getElementById('loginView').style.display='block'; };
+document.getElementById('esqBtn').onclick=async ()=>{
+  const email=document.getElementById('esqEmail').value.trim();
+  const msg=document.getElementById('esqMsg');
+  const btn=document.getElementById('esqBtn');
+  msg.style.display='none';
+  if(!email||email.indexOf('@')<0){ msg.style.display='block'; msg.style.color='var(--danger)'; msg.textContent='Digite um e-mail válido.'; return; }
+  btn.disabled=true; btn.textContent='Enviando...';
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+    if(error) throw error;
+    msg.style.display='block'; msg.style.color='var(--leaf-dark)';
+    msg.textContent='✓ Se este e-mail estiver cadastrado, você receberá o link em instantes. Verifique também a caixa de spam.';
+    btn.textContent='Enviar link de redefinição'; btn.disabled=false;
+  }catch(e){
+    msg.style.display='block'; msg.style.color='var(--danger)'; msg.textContent='Erro ao enviar: '+(e.message||e);
+    btn.textContent='Enviar link de redefinição'; btn.disabled=false;
+  }
+};
 document.getElementById('cadBtn').onclick=fazerCadastro;
 document.getElementById('cadPapel').onchange=atualizarCadGerenteUI;
 document.getElementById('btnSair').onclick=fazerLogout;
