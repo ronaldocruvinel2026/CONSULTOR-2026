@@ -970,7 +970,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260810214139";
+window.APP_VERSION="20260810215017";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2449,7 +2449,8 @@ document.getElementById('pedZoomOut') && (document.getElementById('pedZoomOut').
 function compartilharLinkAssinatura(c){
   if(!c||!c.assinatura_token){ alert('Este pedido não tem link de assinatura. Gere o pedido novamente ou rode a atualização de pedidos antigos.'); return; }
   const link=location.origin+location.pathname+'?assinar='+c.assinatura_token;
-  const texto='Olá! Segue o link para assinar seu pedido na Setec Agro:\n'+link;
+  const numTxt=c.numero?('Pedido nº '+c.numero):'seu pedido';
+  const texto='Olá! Segue o link para assinar '+numTxt+' na Setec Agro:\n'+link;
   if(navigator.share){
     navigator.share({title:'Assinatura de pedido - Setec Agro', text:texto}).catch(()=>{});
   }else{
@@ -3888,10 +3889,12 @@ function iniciarCanvasAssinatura(token){
     const btn=document.getElementById('sigConfirmar'); btn.disabled=true; btn.textContent='Salvando...';
     try{
       const img=canvas.toDataURL('image/png');
-      const {data,error}=await sb.rpc('assinar_pedido',{tok:token, img:img, nome:nome, cpf:cpf});
+      const {data,error}=await sb.rpc('assinar_pedido',{p_tok:token, p_img:img, p_nome:nome, p_cpf:cpf});
       if(error) throw error;
       if(data===false){ throw new Error('Este pedido já foi assinado.'); }
-      document.getElementById('assinaturaArea').innerHTML='<div style="text-align:center;padding:30px;background:#e8f5e9;border-radius:12px"><div style="font-size:20px;font-weight:800;color:#0a5a2e">✓ Assinatura confirmada!</div><div style="font-size:14px;color:#666;margin-top:8px">Obrigado, '+esc(nome)+'. Seu pedido foi assinado com sucesso.</div></div>';
+      document.getElementById('assinaturaArea').innerHTML='<div style="text-align:center;padding:30px;background:#e8f5e9;border-radius:12px"><div style="font-size:20px;font-weight:800;color:#0a5a2e">✓ Assinatura confirmada!</div><div style="font-size:14px;color:#666;margin-top:8px;margin-bottom:16px">Obrigado, '+esc(nome)+'. Seu pedido foi assinado com sucesso.</div>'+
+        '<button onclick="window.print()" style="padding:13px 22px;border:none;background:#0a5a2e;color:#fff;border-radius:10px;font-weight:800;font-size:15px">Ver / salvar pedido em PDF</button>'+
+        '<div style="font-size:12px;color:#888;margin-top:10px">Toque em compartilhar → "Salvar em PDF"</div></div>';
     }catch(e){
       msg.style.color='#c0392b'; msg.textContent='Erro: '+(e.message||e);
       btn.disabled=false; btn.textContent='Confirmar assinatura';
