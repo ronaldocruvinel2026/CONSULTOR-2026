@@ -970,7 +970,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260810215017";
+window.APP_VERSION="20260810215734";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1841,6 +1841,16 @@ async function aoLogar(user){
   renderMinhas && renderMinhas();
   // redesenha a lista de preços com as permissões do usuário (esconde produtos ocultos)
   try{ render(); }catch(e){}
+  // restaura a aba onde o usuário estava antes de atualizar a página
+  try{
+    let abaSalva=localStorage.getItem('setec_aba');
+    const validas=['list','cotacao','minhas','margem','usuarios','carteira','estoque'];
+    if(abaSalva && validas.includes(abaSalva)){
+      // não restaura abas restritas se não for admin
+      if((abaSalva==='margem'||abaSalva==='usuarios') && !ehAdmin) abaSalva='list';
+      showTab(abaSalva);
+    }
+  }catch(e){}
 }
 
 async function fazerLogout(){
@@ -3693,6 +3703,8 @@ const _efj=document.getElementById('estFileJsm');   if(_efj) _efj.onchange=funct
 function showTab(t){
   // proteção: abas restritas só para admin
   if((t==='margem'||t==='usuarios') && !ehAdmin){ t='list'; }
+  // lembra a aba atual para restaurar ao atualizar a página
+  try{ localStorage.setItem('setec_aba', t); }catch(e){}
   ['list','cotacao','minhas','margem','usuarios','carteira','estoque'].forEach(x=>{
     const v=document.getElementById(x==='list'?'listView':x+'View');
     if(v){ if(x==='list') v.style.display=(t==='list')?'block':'none'; else v.classList.toggle('on',t===x); }
