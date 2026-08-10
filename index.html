@@ -475,7 +475,7 @@ body.login-aberto{overflow:hidden}
 .ped-bar{display:flex;gap:10px;padding:14px 16px;background:var(--leaf-soft);border-bottom:1px solid var(--line);position:sticky;top:0;flex-wrap:wrap}
 .ped-bar .btn.zap{background:#25D366;border-color:#25D366;color:#fff}
 .ped-bar .btn.zap:hover{background:#1eb955;border-color:#1eb955}
-.ped-scroll{padding:18px;overflow-x:auto}
+.ped-scroll{padding:18px;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pinch-zoom pan-x pan-y;max-height:calc(100vh - 120px)}
 .ped-doc{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:12px;min-width:720px;width:100%;aspect-ratio:194/281;display:flex;flex-direction:column;box-sizing:border-box}
 /* a tabela de itens cresce para ocupar toda a altura livre da folha */
 .ped-doc .itens-wrap{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
@@ -807,6 +807,8 @@ body.login-aberto{overflow:hidden}
       <button class="btn" id="pedSalvar">Salvar no dispositivo</button>
       <button class="btn zap" id="pedWhats">WhatsApp</button>
       <button class="btn" id="pedAssinatura" style="display:none;background:var(--gold);color:#3a2e08;border-color:var(--gold)">Link de assinatura</button>
+      <button class="btn ghost" id="pedZoomOut" title="Diminuir" style="min-width:44px;font-size:18px;font-weight:800">−</button>
+      <button class="btn ghost" id="pedZoomIn" title="Ampliar" style="min-width:44px;font-size:18px;font-weight:800">+</button>
       <button class="btn ghost" id="pedFechar">Fechar</button>
     </div>
     <div class="ped-scroll"><div id="pedContent"></div></div>
@@ -968,7 +970,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260810213219";
+window.APP_VERSION="20260810214139";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2413,8 +2415,36 @@ function imprimirPedido(id, modoCotacao){
   const bg=document.getElementById('pedBg');
   document.getElementById('pedContent').innerHTML=pedidoHtml+painelMargem;
   bg.classList.add('on');
+  // ajusta o zoom inicial para o documento caber na largura da tela
+  setTimeout(ajustarZoomInicialPedido, 60);
+}
+function ajustarZoomInicialPedido(){
+  const scroll=document.querySelector('.ped-scroll');
+  const doc=document.getElementById('pedContent');
+  if(!scroll||!doc) { pedZoomNivel=1; return; }
+  // largura disponível (descontando o padding) vs largura real do documento
+  const disp=scroll.clientWidth - 36; // padding 18px de cada lado
+  const real=doc.scrollWidth || 720;
+  let z = disp/real;
+  if(z>1) z=1;            // nunca amplia além do natural
+  if(z<0.4) z=0.4;       // limite mínimo de segurança
+  pedZoomNivel=z;
+  aplicarZoomPedido();
 }
 document.getElementById('pedFechar') && (document.getElementById('pedFechar').onclick=()=>document.getElementById('pedBg').classList.remove('on'));
+// zoom do pedido (botões + e -)
+function aplicarZoomPedido(){
+  const doc=document.getElementById('pedContent');
+  if(!doc) return;
+  doc.style.transformOrigin='top left';
+  doc.style.transform='scale('+pedZoomNivel+')';
+  doc.style.transition='transform .15s';
+  // compensa a altura para não sobrar espaço vazio quando reduz
+  const alturaReal=doc.scrollHeight;
+  doc.style.marginBottom = (pedZoomNivel<1) ? ((alturaReal*pedZoomNivel - alturaReal)+'px') : '0px';
+}
+document.getElementById('pedZoomIn') && (document.getElementById('pedZoomIn').onclick=()=>{ pedZoomNivel=Math.min(pedZoomNivel+0.25,3); aplicarZoomPedido(); });
+document.getElementById('pedZoomOut') && (document.getElementById('pedZoomOut').onclick=()=>{ pedZoomNivel=Math.max(pedZoomNivel-0.25,0.5); aplicarZoomPedido(); });
 // compartilhar link de assinatura (usado no card e no pedido aberto)
 function compartilharLinkAssinatura(c){
   if(!c||!c.assinatura_token){ alert('Este pedido não tem link de assinatura. Gere o pedido novamente ou rode a atualização de pedidos antigos.'); return; }
@@ -2428,13 +2458,18 @@ function compartilharLinkAssinatura(c){
 }
 document.getElementById('pedAssinatura') && (document.getElementById('pedAssinatura').onclick=()=>compartilharLinkAssinatura(pedidoAtualObj));
 let pedidoAtualNum=null, pedidoAtualCli='', pedidoAtualCotacao=false, pedidoAtualObj=null;
+let pedZoomNivel=1;
 // gera o PDF do pedido/cotação e devolve {blob, arquivo, nomeArq, titulo}
 async function gerarPdfPedido(){
-  const doc=document.getElementById('pedContent').querySelector('.ped-doc');
+  const wrap=document.getElementById('pedContent');
+  const doc=wrap.querySelector('.ped-doc');
   if(!doc) throw new Error('Documento não encontrado.');
   if(typeof html2canvas==='undefined' || !window.jspdf){
     throw new Error('O PDF precisa de internet para carregar na primeira vez. Conecte-se e tente de novo.');
   }
+  // remove temporariamente o zoom da tela para o PDF sair no tamanho natural
+  const transformSalvo=wrap.style.transform, marginSalvo=wrap.style.marginBottom;
+  wrap.style.transform='none'; wrap.style.marginBottom='0px';
   const numTxt = pedidoAtualNum ? String(pedidoAtualNum) : 'sem-numero';
   const cliLimpo = (pedidoAtualCli||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,40);
   const nomeArq = pedidoAtualCotacao
@@ -2444,6 +2479,8 @@ async function gerarPdfPedido(){
     ? ('Cotação'+(pedidoAtualCli?(' - '+pedidoAtualCli):''))
     : ('Pedido '+numTxt+(pedidoAtualCli?(' - '+pedidoAtualCli):''));
   const canvas=await html2canvas(doc,{scale:1.7,backgroundColor:'#ffffff',useCORS:true});
+  // restaura o zoom da tela
+  wrap.style.transform=transformSalvo; wrap.style.marginBottom=marginSalvo;
   const img=canvas.toDataURL('image/jpeg',0.86);
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
