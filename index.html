@@ -401,6 +401,7 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .est-info{flex:1;min-width:0}
 .est-nome{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3}
 .est-atualizado{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:10px;text-align:right}
+.cart-topbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .est-fab{font-size:11.5px;color:var(--leaf);font-weight:700;margin-top:2px}
 .est-princ{font-size:11px;color:var(--muted);margin-top:1px;font-style:italic}
 .est-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
@@ -846,6 +847,11 @@ body.login-aberto{overflow:hidden}
         </div>
       </div>
 
+      <div id="cartAtualizado" class="est-atualizado"></div>
+      <div class="cart-topbar">
+        <div id="cartResumoInfo" style="flex:1"></div>
+        <button class="btn ghost" id="cartExportarPdf" type="button">⬇ Exportar PDF</button>
+      </div>
       <div id="cartResumo" class="cart-resumo"></div>
       <div id="cartList" class="mc-list"></div>
     </div>
@@ -952,7 +958,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260806135158";
+window.APP_VERSION="20260810161045";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2610,6 +2616,7 @@ let cartOrigem='TODAS';
 let cartBusca='';
 let cartVend='ALL';
 let cartClientes=new Set(); // clientes selecionados no filtro múltiplo
+let cartLinhasFiltradas=[]; // linhas atualmente exibidas (para exportar PDF)
 let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
 
 async function carregarCarteira(){
@@ -2635,12 +2642,96 @@ function carteiraVisivel(){
   return carteira.filter(l=>norm(l.vendedor_nome||'')===meu);
 }
 
+function exportarCarteiraPdf(){
+  if(!window.jspdf){ alert('Biblioteca de PDF ainda carregando, tente de novo em instantes.'); return; }
+  const linhas=cartLinhasFiltradas||[];
+  if(!linhas.length){ alert('Não há itens na tela para exportar.'); return; }
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const pw=pdf.internal.pageSize.getWidth();
+  const margem=8;
+  let y=14;
+
+  pdf.setFontSize(15); pdf.setTextColor(10,90,46); pdf.setFont(undefined,'bold');
+  pdf.text('Carteira de Pedidos — Setec Agro', margem, y);
+  y+=6;
+  pdf.setFontSize(9); pdf.setTextColor(90,90,90); pdf.setFont(undefined,'normal');
+  const dataAt=document.getElementById('cartAtualizado');
+  if(dataAt&&dataAt.textContent){ pdf.text(dataAt.textContent, margem, y); }
+  const hoje=new Date();
+  pdf.text('Emitido em '+String(hoje.getDate()).padStart(2,'0')+'/'+String(hoje.getMonth()+1).padStart(2,'0')+'/'+hoje.getFullYear(), pw-margem, y, {align:'right'});
+  y+=6;
+
+  const cols=[
+    {t:'Cliente', w:45, k:l=>l.cliente_nome||'—'},
+    {t:'Fazenda', w:38, k:l=>l.propriedade||'—'},
+    {t:'Município', w:28, k:l=>l.municipio||'—'},
+    {t:'Pedido', w:18, k:l=>String(l.pedido||'—')},
+    {t:'Produto', w:60, k:l=>l.produto_desc||'—'},
+    {t:'Saldo', w:16, k:l=>String(l.saldo!=null?l.saldo:''), a:'right'},
+    {t:'Vlr Unit', w:22, k:l=>l.vlr_unitario!=null?brl(+l.vlr_unitario):'', a:'right'},
+    {t:'Total', w:24, k:l=>brl((+l.saldo||0)*(+l.vlr_unitario||0)), a:'right'}
+  ];
+  const totalW=cols.reduce((s,c)=>s+c.w,0);
+  const escala=(pw-2*margem)/totalW;
+  cols.forEach(c=>c.w=c.w*escala);
+
+  function cabecalho(){
+    pdf.setFillColor(10,90,46); pdf.setTextColor(255,255,255); pdf.setFont(undefined,'bold'); pdf.setFontSize(8);
+    pdf.rect(margem,y,pw-2*margem,7,'F');
+    let x=margem;
+    cols.forEach(c=>{ pdf.text(c.t, x+1.5, y+4.8); x+=c.w; });
+    y+=7;
+  }
+  cabecalho();
+
+  pdf.setTextColor(30,30,30); pdf.setFont(undefined,'normal'); pdf.setFontSize(7.5);
+  let totalGeral=0, zebra=false;
+  linhas.forEach(l=>{
+    if(y>195){ pdf.addPage(); y=14; cabecalho(); pdf.setTextColor(30,30,30); pdf.setFont(undefined,'normal'); pdf.setFontSize(7.5); }
+    const alt=6;
+    if(zebra){ pdf.setFillColor(244,240,232); pdf.rect(margem,y,pw-2*margem,alt,'F'); }
+    zebra=!zebra;
+    let x=margem;
+    cols.forEach(c=>{
+      let txt=c.k(l)||'';
+      const maxCh=Math.floor(c.w/1.5);
+      if(txt.length>maxCh) txt=txt.slice(0,maxCh-1)+'…';
+      pdf.text(txt, c.a==='right'?(x+c.w-1.5):(x+1.5), y+4, {align:c.a==='right'?'right':'left'});
+      x+=c.w;
+    });
+    totalGeral+=(+l.saldo||0)*(+l.vlr_unitario||0);
+    y+=alt;
+  });
+
+  y+=2;
+  pdf.setFont(undefined,'bold'); pdf.setFontSize(9); pdf.setTextColor(10,90,46);
+  pdf.text('Saldo total a entregar: R$ '+brl(totalGeral), pw-margem, y+2, {align:'right'});
+  pdf.text(linhas.length+' item(ns)', margem, y+2);
+
+  pdf.save('carteira_setec.pdf');
+}
+
 function renderCarteira(){
   const list=document.getElementById('cartList');
   const sub=document.getElementById('cartSub');
   const resumo=document.getElementById('cartResumo');
   if(!usuario){ list.innerHTML='<div class="mc-vazio">Faça login para ver a carteira.</div>'; return; }
   renderCartCliChips();
+
+  // data/hora da última importação da carteira
+  const elCA=document.getElementById('cartAtualizado');
+  if(elCA){
+    let maisRec=null;
+    carteira.forEach(l=>{ if(l.importada_em){ const d=new Date(l.importada_em); if(!maisRec||d>maisRec) maisRec=d; } });
+    if(maisRec){
+      const dd=String(maisRec.getDate()).padStart(2,'0');
+      const mm=String(maisRec.getMonth()+1).padStart(2,'0');
+      const hh=String(maisRec.getHours()).padStart(2,'0');
+      const mi=String(maisRec.getMinutes()).padStart(2,'0');
+      elCA.textContent='ATUALIZADO DIA '+dd+'/'+mm+'/'+maisRec.getFullYear()+' às '+hh+':'+mi;
+    } else { elCA.textContent=''; }
+  }
 
   // painel de importação só para admin
   const imp=document.getElementById('cartImport');
@@ -2695,6 +2786,7 @@ function renderCarteira(){
 
   // resumo
   const totSaldo=linhas.reduce((s,l)=>s+(+l.saldo||0)*(+l.vlr_unitario||0),0);
+  cartLinhasFiltradas=linhas.slice(); // guarda o que está na tela para exportar
   resumo.innerHTML=
     '<div class="cart-destaque"><span>Saldo a entregar</span><b>R$ '+brl(totSaldo)+'</b></div>';
 
@@ -2973,6 +3065,7 @@ function nomeLojaCod(cod){
 
 /* filtros e busca */
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
+(function(){ const b=document.getElementById('cartExportarPdf'); if(b) b.onclick=exportarCarteiraPdf; })();
 document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
 
 /* ---- seleção múltipla de clientes na carteira ---- */
@@ -3158,6 +3251,8 @@ function importarCarteira(ev, origem){
       }
       if(!registros.length){ cartStatus('err','Nenhuma linha de produto encontrada na planilha.'); return; }
 
+      const agoraCartISO=new Date().toISOString();
+      registros.forEach(r=>{ r.importada_em=agoraCartISO; });
       cartStatus('','Enviando '+registros.length+' item(ns) da '+origem+'...');
       // substitui apenas os dados desta empresa, preservando a outra
       const del=await sb.from('carteira').delete().eq('origem',origem);
@@ -3331,7 +3426,7 @@ function renderEstoque(){
       const mm=String(maisRecente.getMonth()+1).padStart(2,'0');
       const hh=String(maisRecente.getHours()).padStart(2,'0');
       const mi=String(maisRecente.getMinutes()).padStart(2,'0');
-      elAt.textContent='Atualizado em '+dd+'/'+mm+'/'+maisRecente.getFullYear()+' '+hh+':'+mi;
+      elAt.textContent='ATUALIZADO DIA '+dd+'/'+mm+'/'+maisRecente.getFullYear()+' às '+hh+':'+mi;
     } else { elAt.textContent=''; }
   }
 
