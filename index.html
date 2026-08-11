@@ -970,7 +970,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260810220008";
+window.APP_VERSION="20260811132159";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2021,7 +2021,7 @@ async function carregarCotacoes(){
     cotSalvas=(data||[]).map(r=>({
       id:r.id, user_id:r.user_id, consultor:r.user_id, consultorNome:r.consultor_nome,
       cliente:r.cliente, fazenda:r.fazenda, cpf:r.cpf, mun:r.municipio,
-      pagAno:r.pag_ano, pagMes:r.pag_mes, status:r.status||'cotacao',
+      pagAno:r.pag_ano, pagMes:r.pag_mes, pagDia:r.pag_dia||20, status:r.status||'cotacao',
       numero:r.numero_pedido?String(r.numero_pedido):null,
       motivoPerda:r.motivo_perda||null,
       loja:r.loja||null,
@@ -2082,7 +2082,7 @@ document.getElementById('cotSalvar').onclick=async ()=>{
     const registro={
       user_id:usuario.id, consultor_nome:usuario.nome,
       cliente:d.cliente, fazenda:d.fazenda, cpf:d.cpf, municipio:d.mun,
-      pag_ano:d.pagAno, pag_mes:d.pagMes, itens:d.itens,
+      pag_ano:d.pagAno, pag_mes:d.pagMes, pag_dia:d.pagDia, itens:d.itens,
       loja:meuLoja,
       atualizada_em:new Date().toISOString()
     };
@@ -2331,7 +2331,8 @@ function imprimirPedido(id, modoCotacao){
   const c=cotSalvas.find(x=>x.id===id); if(!c) return;
   const total=totalCot(c);
   const MES=['','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  const venc = 'Pagto '+String(c.pagMes).padStart(2,'0')+'/'+c.pagAno;
+  const diaPag=String(c.pagDia||20).padStart(2,'0');
+  const venc = diaPag+'/'+String(c.pagMes).padStart(2,'0')+'/'+c.pagAno;
   const dt=(c.criada instanceof Date)?c.criada:new Date();
   const dataStr=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
   const linhas=c.itens.map(it=>{
@@ -2812,9 +2813,13 @@ function exportarCarteiraPdf(){
     zebra=!zebra;
     let x=margem;
     cols.forEach(c=>{
-      let txt=c.k(l)||'';
-      const maxCh=Math.floor(c.w/1.5);
-      if(txt.length>maxCh) txt=txt.slice(0,maxCh-1)+'…';
+      let txt=String(c.k(l)||'');
+      const larguraMax=c.w-3; // folga de 3mm para não colar na coluna vizinha
+      // trunca pela largura REAL do texto (não por número de caracteres)
+      if(pdf.getTextWidth(txt)>larguraMax){
+        while(txt.length>1 && pdf.getTextWidth(txt+'…')>larguraMax){ txt=txt.slice(0,-1); }
+        txt=txt.replace(/\s+$/,'')+'…';
+      }
       pdf.text(txt, c.a==='right'?(x+c.w-1.5):(x+1.5), y+4, {align:c.a==='right'?'right':'left'});
       x+=c.w;
     });
