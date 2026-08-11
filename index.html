@@ -843,6 +843,7 @@ body.login-aberto{overflow:hidden}
           <input id="cartBusca" type="text" placeholder="Buscar cliente, fazenda, produto ou nº do pedido...">
         </div>
         <select id="cartVendFiltro" style="min-width:180px"><option value="ALL">Todos os vendedores</option></select>
+        <select id="cartProdFiltro" style="min-width:180px;display:none"><option value="ALL">Todos os produtos</option></select>
       </div>
       <div class="cart-cli-filtro">
         <button class="mc-fbtn" id="cartCliBtn" type="button">＋ Selecionar clientes</button>
@@ -970,7 +971,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260811132159";
+window.APP_VERSION="20260811135614";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2734,6 +2735,7 @@ let cartFiltro='aberto';
 let cartOrigem='TODAS';
 let cartBusca='';
 let cartVend='ALL';
+let cartProd='ALL';
 let cartClientes=new Set(); // clientes selecionados no filtro múltiplo
 let cartLinhasFiltradas=[]; // linhas atualmente exibidas (para exportar PDF)
 let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
@@ -2884,6 +2886,21 @@ function renderCarteira(){
     }
     if(cartVend!=='ALL') linhas=linhas.filter(l=>l.vendedor_nome===cartVend);
   }else{ selV.style.display='none'; }
+
+  // filtro por produto (só gerente/admin)
+  const selP=document.getElementById('cartProdFiltro');
+  if(selP){
+    if(ehAdmin||meuPapel==='gerente'){
+      selP.style.display='';
+      const base = ehAdmin ? carteira : carteiraVisivel();
+      const prods=[...new Set(base.map(l=>l.produto_desc).filter(Boolean))].sort();
+      if(selP.options.length!==prods.length+1){
+        selP.innerHTML='<option value="ALL">Todos os produtos</option>'+prods.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join('');
+        selP.value=cartProd;
+      }
+      if(cartProd!=='ALL') linhas=linhas.filter(l=>l.produto_desc===cartProd);
+    }else{ selP.style.display='none'; }
+  }
 
   // filtro por empresa
   if(cartOrigem!=='TODAS') linhas=linhas.filter(l=>(l.origem||'SETEC')===cartOrigem);
@@ -3190,6 +3207,7 @@ function nomeLojaCod(cod){
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 (function(){ const b=document.getElementById('cartExportarPdf'); if(b) b.onclick=exportarCarteiraPdf; })();
 document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
+(function(){ const sp=document.getElementById('cartProdFiltro'); if(sp) sp.onchange=e=>{ cartProd=e.target.value; renderCarteira(); }; })();
 
 /* ---- seleção múltipla de clientes na carteira ---- */
 // lista de clientes disponíveis, respeitando vendedor/empresa (não filtra por situação nem por cliente já marcado)
