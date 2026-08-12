@@ -327,6 +327,24 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
 .cart-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
 .cart-tbl td.c,.cart-tbl th.c{text-align:center}
 .cart-tbl td.r,.cart-tbl th.r{text-align:right;white-space:nowrap}
+/* Versão compacta dos itens do pedido no celular */
+@media (max-width:640px){
+  .cart-tblwrap{overflow-x:visible}
+  .cart-tbl{min-width:0;font-size:13px}
+  .cart-tbl thead{display:none}
+  .cart-tbl,.cart-tbl tbody,.cart-tbl tr,.cart-tbl td{display:block;width:auto}
+  .cart-tbl tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px 8px 34px;margin-bottom:8px;position:relative;background:#fff}
+  .cart-tbl tr.fat-linha{cursor:pointer}
+  .cart-tbl td{border:none;padding:2px 0;display:flex;justify-content:space-between;align-items:baseline}
+  .cart-tbl td.fat-cel{position:absolute;left:8px;top:10px;padding:0}
+  .cart-tbl td.td-prod{display:block;font-weight:800;color:var(--ink);font-size:14px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+  .cart-tbl td.td-prod .ci-fabmini{font-weight:600}
+  .cart-tbl td[data-label]::before{content:attr(data-label);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+  .cart-tbl td.r{text-align:right}
+  .cart-tbl td[data-label="Saldo"]{font-weight:800;font-size:14px}
+  .cart-tbl td[data-label="Saldo"].sld-aberto{color:var(--gold)}
+  .cart-tbl td[data-label="Total"]{font-weight:700}
+}
 .sld-aberto{color:#8a6d1f;font-weight:800}
 .sld-ok{color:var(--muted)}
 /* ===== carteira: card por cliente, pedidos separados dentro ===== */
@@ -843,9 +861,8 @@ body.login-aberto{overflow:hidden}
           <input id="cartBusca" type="text" placeholder="Buscar cliente, fazenda, produto ou nº do pedido...">
         </div>
         <select id="cartVendFiltro" style="min-width:180px"><option value="ALL">Todos os vendedores</option></select>
-        <select id="cartProdFiltro" style="min-width:180px;display:none"><option value="ALL">Todos os produtos</option></select>
       </div>
-      <div class="cart-cli-filtro">
+      <div class="cart-cli-filtro" id="cartFiltrosMultiplos">
         <button class="mc-fbtn" id="cartCliBtn" type="button">＋ Selecionar clientes</button>
         <div id="cartCliChips" class="cart-cli-chips"></div>
         <button class="cart-cli-limpar" id="cartCliLimpar" type="button" style="display:none">Limpar clientes</button>
@@ -857,6 +874,36 @@ body.login-aberto{overflow:hidden}
         <div id="cartCliLista" class="cart-cli-lista"></div>
         <div class="cart-cli-panel-foot">
           <button class="btn ghost" id="cartCliFechar" type="button">Fechar</button>
+        </div>
+      </div>
+
+      <div class="cart-cli-filtro" id="cartFiltroProd" style="display:none">
+        <button class="mc-fbtn" id="cartProdBtn" type="button">＋ Selecionar produtos</button>
+        <div id="cartProdChips" class="cart-cli-chips"></div>
+        <button class="cart-cli-limpar" id="cartProdLimpar" type="button" style="display:none">Limpar produtos</button>
+      </div>
+      <div id="cartProdPanel" class="cart-cli-panel">
+        <div class="cart-cli-panel-busca">
+          <input id="cartProdBusca" type="text" placeholder="Buscar produto para marcar...">
+        </div>
+        <div id="cartProdLista" class="cart-cli-lista"></div>
+        <div class="cart-cli-panel-foot">
+          <button class="btn ghost" id="cartProdFechar" type="button">Fechar</button>
+        </div>
+      </div>
+
+      <div class="cart-cli-filtro" id="cartFiltroFab" style="display:none">
+        <button class="mc-fbtn" id="cartFabBtn" type="button">＋ Selecionar fabricantes</button>
+        <div id="cartFabChips" class="cart-cli-chips"></div>
+        <button class="cart-cli-limpar" id="cartFabLimpar" type="button" style="display:none">Limpar fabricantes</button>
+      </div>
+      <div id="cartFabPanel" class="cart-cli-panel">
+        <div class="cart-cli-panel-busca">
+          <input id="cartFabBusca" type="text" placeholder="Buscar fabricante para marcar...">
+        </div>
+        <div id="cartFabLista" class="cart-cli-lista"></div>
+        <div class="cart-cli-panel-foot">
+          <button class="btn ghost" id="cartFabFechar" type="button">Fechar</button>
         </div>
       </div>
 
@@ -971,7 +1018,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260811135614";
+window.APP_VERSION="20260812113615";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2735,7 +2782,8 @@ let cartFiltro='aberto';
 let cartOrigem='TODAS';
 let cartBusca='';
 let cartVend='ALL';
-let cartProd='ALL';
+let cartProdutos=new Set();    // produtos selecionados no filtro múltiplo
+let cartFabricantes=new Set(); // fabricantes selecionados no filtro múltiplo
 let cartClientes=new Set(); // clientes selecionados no filtro múltiplo
 let cartLinhasFiltradas=[]; // linhas atualmente exibidas (para exportar PDF)
 let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
@@ -2843,6 +2891,7 @@ function renderCarteira(){
   const resumo=document.getElementById('cartResumo');
   if(!usuario){ list.innerHTML='<div class="mc-vazio">Faça login para ver a carteira.</div>'; return; }
   renderCartCliChips();
+  if(typeof renderCartMultiChips==='function') renderCartMultiChips();
 
   // data/hora da última importação da carteira
   const elCA=document.getElementById('cartAtualizado');
@@ -2887,19 +2936,13 @@ function renderCarteira(){
     if(cartVend!=='ALL') linhas=linhas.filter(l=>l.vendedor_nome===cartVend);
   }else{ selV.style.display='none'; }
 
-  // filtro por produto (só gerente/admin)
-  const selP=document.getElementById('cartProdFiltro');
-  if(selP){
-    if(ehAdmin||meuPapel==='gerente'){
-      selP.style.display='';
-      const base = ehAdmin ? carteira : carteiraVisivel();
-      const prods=[...new Set(base.map(l=>l.produto_desc).filter(Boolean))].sort();
-      if(selP.options.length!==prods.length+1){
-        selP.innerHTML='<option value="ALL">Todos os produtos</option>'+prods.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join('');
-        selP.value=cartProd;
-      }
-      if(cartProd!=='ALL') linhas=linhas.filter(l=>l.produto_desc===cartProd);
-    }else{ selP.style.display='none'; }
+  // filtros múltiplos de produto e fabricante (só gerente/admin)
+  const mostrarMult = (ehAdmin||meuPapel==='gerente');
+  const fp=document.getElementById('cartFiltroProd'); if(fp) fp.style.display = mostrarMult?'':'none';
+  const ff=document.getElementById('cartFiltroFab'); if(ff) ff.style.display = mostrarMult?'':'none';
+  if(mostrarMult){
+    if(cartProdutos.size>0) linhas=linhas.filter(l=>cartProdutos.has(l.produto_desc||'—'));
+    if(cartFabricantes.size>0) linhas=linhas.filter(l=>cartFabricantes.has(l.fabricante||'—'));
   }
 
   // filtro por empresa
@@ -2972,14 +3015,13 @@ function renderCarteira(){
           : '';
         return '<tr'+(podeSel?' class="fat-linha" data-sel="'+i._selId+'"':'')+'>'+
           '<td class="c fat-cel">'+check+'</td>'+
-          '<td>'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
-          '<td class="c">'+esc(i.unidade||'')+'</td>'+
-          '<td class="r">'+brl(ped)+'</td>'+
-          '<td class="r">'+brl(ent)+'</td>'+
-          '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'">'+brl(s)+'</td>'+
-          '<td class="r">'+brl(+i.vlr_unitario||0)+'</td>'+
-          '<td class="r">'+brl(ped*(+i.vlr_unitario||0))+'</td>'+
-          '<td class="c"><div class="prog"><div class="prog-in" style="width:'+pct+'%"></div></div><span class="prog-t">'+pct+'%</span></td>'+
+          '<td class="td-prod">'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
+          '<td class="c" data-label="Un">'+esc(i.unidade||'')+'</td>'+
+          '<td class="r" data-label="Pedida">'+brl(ped)+'</td>'+
+          '<td class="r" data-label="Entregue">'+brl(ent)+'</td>'+
+          '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'" data-label="Saldo">'+brl(s)+'</td>'+
+          '<td class="r" data-label="Vlr unit.">'+brl(+i.vlr_unitario||0)+'</td>'+
+          '<td class="r" data-label="Total">'+brl(ped*(+i.vlr_unitario||0))+'</td>'+
         '</tr>';
       }).join('');
       return '<div class="cart-pedido '+(aberto?'is-aberto':'is-ok')+'">'+
@@ -2988,7 +3030,7 @@ function renderCarteira(){
           '<div class="cart-vals"><div class="cv-tot">R$ '+brl(vTot)+'</div>'+
             (aberto?('<div class="cv-saldo">Saldo R$ '+brl(vSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
         '</div>'+
-        '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th class="c"></th><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Total</th><th class="c">Entrega</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
+        '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th class="c"></th><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Total</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
       '</div>';
     }).join('');
 
@@ -3207,7 +3249,6 @@ function nomeLojaCod(cod){
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 (function(){ const b=document.getElementById('cartExportarPdf'); if(b) b.onclick=exportarCarteiraPdf; })();
 document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
-(function(){ const sp=document.getElementById('cartProdFiltro'); if(sp) sp.onchange=e=>{ cartProd=e.target.value; renderCarteira(); }; })();
 
 /* ---- seleção múltipla de clientes na carteira ---- */
 // lista de clientes disponíveis, respeitando vendedor/empresa (não filtra por situação nem por cliente já marcado)
@@ -3260,6 +3301,75 @@ function renderCartCliLista(){
   if(busca) busca.oninput=()=>renderCartCliLista();
   if(limpar) limpar.onclick=()=>{ cartClientes.clear(); renderCartCliChips(); renderCartCliLista(); renderCarteira(); };
 })();
+
+/* ---- filtros múltiplos genéricos (produto e fabricante) ---- */
+function valoresDisponiveis(campo){
+  let base=carteiraVisivel();
+  if((ehAdmin||meuPapel==='gerente') && cartVend!=='ALL') base=base.filter(l=>l.vendedor_nome===cartVend);
+  if(cartOrigem!=='TODAS') base=base.filter(l=>(l.origem||'SETEC')===cartOrigem);
+  return [...new Set(base.map(l=>l[campo]||'—').filter(v=>v&&v!=='—'))].sort((a,b)=>a.localeCompare(b,'pt'));
+}
+function montarFiltroMultiplo(cfg){
+  // cfg: {set, campo, chipsId, limparId, listaId, buscaId, remAttr, cbAttr, singular}
+  function renderChips(){
+    const wrap=document.getElementById(cfg.chipsId);
+    const limpar=document.getElementById(cfg.limparId);
+    if(!wrap) return;
+    if(cfg.set.size===0){ wrap.innerHTML=''; if(limpar) limpar.style.display='none'; return; }
+    if(limpar) limpar.style.display='';
+    wrap.innerHTML=[...cfg.set].map(v=>'<span class="cart-cli-chip">'+esc(v)+'<button data-'+cfg.remAttr+'="'+esc(v)+'" title="Remover">✕</button></span>').join('');
+    wrap.querySelectorAll('[data-'+cfg.remAttr+']').forEach(b=>{
+      b.onclick=()=>{ cfg.set.delete(b.getAttribute('data-'+cfg.remAttr)); renderChips(); renderLista(); renderCarteira(); };
+    });
+  }
+  function renderLista(){
+    const lista=document.getElementById(cfg.listaId);
+    if(!lista) return;
+    const buscaEl=document.getElementById(cfg.buscaId);
+    const q=norm(buscaEl?buscaEl.value:'');
+    let vals=valoresDisponiveis(cfg.campo);
+    if(q) vals=vals.filter(v=>norm(v).includes(q));
+    if(!vals.length){ lista.innerHTML='<div class="mc-vazio" style="padding:16px">Nenhum '+cfg.singular+' encontrado.</div>'; return; }
+    lista.innerHTML=vals.map(v=>{
+      const on=cfg.set.has(v);
+      return '<label class="cart-cli-opt'+(on?' marcado':'')+'"><input type="checkbox" data-'+cfg.cbAttr+'="'+esc(v)+'"'+(on?' checked':'')+'>'+esc(v)+'</label>';
+    }).join('');
+    lista.querySelectorAll('input[data-'+cfg.cbAttr+']').forEach(cb=>{
+      cb.onchange=()=>{
+        const val=cb.getAttribute('data-'+cfg.cbAttr);
+        if(cb.checked) cfg.set.add(val); else cfg.set.delete(val);
+        renderChips(); renderCarteira();
+        cb.closest('.cart-cli-opt').classList.toggle('marcado',cb.checked);
+      };
+    });
+  }
+  const btn=document.getElementById(cfg.btnId);
+  const panel=document.getElementById(cfg.panelId);
+  const fechar=document.getElementById(cfg.fecharId);
+  const busca=document.getElementById(cfg.buscaId);
+  const limpar=document.getElementById(cfg.limparId);
+  if(btn&&panel){
+    btn.onclick=()=>{ const abrir=!panel.classList.contains('on'); panel.classList.toggle('on',abrir); if(abrir) renderLista(); };
+  }
+  if(fechar) fechar.onclick=()=>panel.classList.remove('on');
+  if(busca) busca.oninput=()=>renderLista();
+  if(limpar) limpar.onclick=()=>{ cfg.set.clear(); renderChips(); renderLista(); renderCarteira(); };
+  cfg._renderChips=renderChips;
+  return cfg;
+}
+const _filtroProd=montarFiltroMultiplo({
+  set:cartProdutos, campo:'produto_desc', singular:'produto',
+  btnId:'cartProdBtn', panelId:'cartProdPanel', fecharId:'cartProdFechar',
+  buscaId:'cartProdBusca', listaId:'cartProdLista', chipsId:'cartProdChips',
+  limparId:'cartProdLimpar', remAttr:'prod-rem', cbAttr:'prod'
+});
+const _filtroFab=montarFiltroMultiplo({
+  set:cartFabricantes, campo:'fabricante', singular:'fabricante',
+  btnId:'cartFabBtn', panelId:'cartFabPanel', fecharId:'cartFabFechar',
+  buscaId:'cartFabBusca', listaId:'cartFabLista', chipsId:'cartFabChips',
+  limparId:'cartFabLimpar', remAttr:'fab-rem', cbAttr:'fab'
+});
+function renderCartMultiChips(){ if(_filtroProd._renderChips)_filtroProd._renderChips(); if(_filtroFab._renderChips)_filtroFab._renderChips(); }
 
 /* ---- importação do Excel do SIAGRI (só admin) ---- */
 function cartStatus(tipo,msg){
