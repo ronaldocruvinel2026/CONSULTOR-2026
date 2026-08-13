@@ -349,6 +349,14 @@ tr.mg-semcusto{background:#fbfaf6;color:var(--muted)}
   .cart-tbl td[data-label="Saldo"].sld-aberto{color:var(--gold)}
   .cart-tbl td[data-label="Saldo R$"]{font-weight:800;font-size:14px}
   .cart-tbl td[data-label="Saldo R$"].sld-aberto{color:var(--gold)}
+  /* versão clean: esconde detalhes até tocar em Ver mais */
+  .cart-tbl tr .cart-det{display:none}
+  .cart-tbl tr.det-aberto .cart-det{display:flex}
+  .cart-vermais{display:inline-block;margin-top:6px;background:none;border:none;color:var(--leaf);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;padding:2px 0}
+}
+@media (min-width:641px){
+  /* no computador, o Ver mais some e mostra tudo normalmente */
+  .cart-vermais{display:none}
 }
 .sld-aberto{color:#8a6d1f;font-weight:800}
 .sld-ok{color:var(--muted)}
@@ -1023,7 +1031,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260812182037";
+window.APP_VERSION="20260813105844";
 (function(){
   function checarAtualizacao(){
     try{
@@ -3044,12 +3052,12 @@ function renderCarteira(){
           : '';
         return '<tr'+(podeSel?' class="fat-linha" data-sel="'+i._selId+'"':'')+'>'+
           '<td class="c fat-cel">'+check+'</td>'+
-          '<td class="td-prod">'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'</td>'+
-          '<td class="c" data-label="Un">'+esc(i.unidade||'')+'</td>'+
-          '<td class="r" data-label="Pedida">'+brl(ped)+'</td>'+
-          '<td class="r" data-label="Entregue">'+brl(ent)+'</td>'+
-          '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'" data-label="Saldo">'+brl(s)+'</td>'+
+          '<td class="td-prod">'+esc(i.produto_desc||'')+(i.fabricante?'<span class="ci-fabmini">'+esc(i.fabricante)+'</span>':'')+'<button type="button" class="cart-vermais" data-vermais>Ver mais ▾</button></td>'+
+          '<td class="c cart-det" data-label="Un">'+esc(i.unidade||'')+'</td>'+
+          '<td class="r cart-det" data-label="Pedida">'+brl(ped)+'</td>'+
+          '<td class="r cart-det" data-label="Entregue">'+brl(ent)+'</td>'+
           '<td class="r" data-label="Vlr unit.">'+brl(+i.vlr_unitario||0)+'</td>'+
+          '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'" data-label="Saldo">'+brl(s)+'</td>'+
           '<td class="r '+(s>0?'sld-aberto':'sld-ok')+'" data-label="Saldo R$">'+brl(s*(+i.vlr_unitario||0))+'</td>'+
         '</tr>';
       }).join('');
@@ -3059,7 +3067,7 @@ function renderCarteira(){
           '<div class="cart-vals"><div class="cv-tot">R$ '+brl(vTot)+'</div>'+
             (aberto?('<div class="cv-saldo">Saldo R$ '+brl(vSaldo)+'</div>'):'<div class="cv-ok">Entregue</div>')+'</div>'+
         '</div>'+
-        '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th class="c"></th><th>Produto</th><th class="c">Un</th><th class="r">Pedida</th><th class="r">Entregue</th><th class="r">Saldo</th><th class="r">Vlr unit.</th><th class="r">Saldo R$</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
+        '<div class="cart-tblwrap"><table class="cart-tbl"><thead><tr><th class="c"></th><th>Produto</th><th class="c cart-det">Un</th><th class="r cart-det">Pedida</th><th class="r cart-det">Entregue</th><th class="r">Vlr unit.</th><th class="r">Saldo</th><th class="r">Saldo R$</th></tr></thead><tbody>'+itensHtml+'</tbody></table></div>'+
       '</div>';
     }).join('');
 
@@ -3081,6 +3089,16 @@ function renderCarteira(){
   });
   list.querySelectorAll('.fat-linha').forEach(tr=>{
     tr.onclick=()=>{ const id=tr.dataset.sel; const novo=!fatSel[id]; toggleFat(id, novo); const c=tr.querySelector('.fat-check'); if(c) c.checked=novo; };
+  });
+  // botão "Ver mais" — expande/recolhe os detalhes do item
+  list.querySelectorAll('[data-vermais]').forEach(btn=>{
+    btn.onclick=(e)=>{
+      e.stopPropagation();
+      const tr=btn.closest('tr');
+      if(!tr) return;
+      const aberto=tr.classList.toggle('det-aberto');
+      btn.textContent=aberto?'Ver menos ▴':'Ver mais ▾';
+    };
   });
   atualizarBarraFat();
 }
