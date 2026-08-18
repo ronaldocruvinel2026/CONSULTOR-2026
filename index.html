@@ -1031,7 +1031,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260813105844";
+window.APP_VERSION="20260818105024";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2868,15 +2868,23 @@ function exportarCarteiraPdf(){
   pdf.text('Emitido em '+String(hoje.getDate()).padStart(2,'0')+'/'+String(hoje.getMonth()+1).padStart(2,'0')+'/'+hoje.getFullYear(), pw-margem, y, {align:'right'});
   y+=6;
 
+  const fmtVenc=(v)=>{
+    if(!v) return '—';
+    // aceita ISO (aaaa-mm-dd) ou já formatado
+    const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[3]+'/'+m[2]+'/'+m[1];
+    return String(v);
+  };
   const cols=[
-    {t:'Cliente', w:45, k:l=>l.cliente_nome||'—'},
-    {t:'Fazenda', w:38, k:l=>l.propriedade||'—'},
-    {t:'Município', w:28, k:l=>l.municipio||'—'},
-    {t:'Pedido', w:18, k:l=>String(l.pedido||'—')},
-    {t:'Produto', w:60, k:l=>l.produto_desc||'—'},
-    {t:'Saldo', w:16, k:l=>String(l.saldo!=null?l.saldo:''), a:'right'},
-    {t:'Vlr Unit', w:22, k:l=>l.vlr_unitario!=null?brl(+l.vlr_unitario):'', a:'right'},
-    {t:'Total', w:24, k:l=>brl((+l.saldo||0)*(+l.vlr_unitario||0)), a:'right'}
+    {t:'Cliente', w:42, k:l=>l.cliente_nome||'—'},
+    {t:'Fazenda', w:34, k:l=>l.propriedade||'—'},
+    {t:'Município', w:26, k:l=>l.municipio||'—'},
+    {t:'Pedido', w:16, k:l=>String(l.pedido||'—')},
+    {t:'Vencimento', w:22, k:l=>fmtVenc(l.vencimento), a:'right'},
+    {t:'Produto', w:52, k:l=>l.produto_desc||'—'},
+    {t:'Saldo', w:15, k:l=>String(l.saldo!=null?l.saldo:''), a:'right'},
+    {t:'Vlr Unit', w:20, k:l=>l.vlr_unitario!=null?brl(+l.vlr_unitario):'', a:'right'},
+    {t:'Total', w:22, k:l=>brl((+l.saldo||0)*(+l.vlr_unitario||0)), a:'right'}
   ];
   const totalW=cols.reduce((s,c)=>s+c.w,0);
   const escala=(pw-2*margem)/totalW;
