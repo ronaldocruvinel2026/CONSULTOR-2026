@@ -838,6 +838,7 @@ body.login-aberto{overflow:hidden}
       <button class="btn" id="pedSalvar">Salvar no dispositivo</button>
       <button class="btn zap" id="pedWhats">WhatsApp</button>
       <button class="btn" id="pedAssinatura" style="display:none;background:var(--gold);color:#3a2e08;border-color:var(--gold)">Link de assinatura</button>
+      <button class="btn" id="pedTrocarVend" style="display:none">Trocar vendedor</button>
       <button class="btn ghost" id="pedZoomOut" title="Diminuir" style="min-width:44px;font-size:18px;font-weight:800">−</button>
       <button class="btn ghost" id="pedZoomIn" title="Ampliar" style="min-width:44px;font-size:18px;font-weight:800">+</button>
       <button class="btn ghost" id="pedFechar">Fechar</button>
@@ -1031,7 +1032,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260820152832";
+window.APP_VERSION="20260825124726";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2419,6 +2420,11 @@ function imprimirPedido(id, modoCotacao){
       btnAssin.style.display='none';
     }
   }
+  // botão trocar vendedor: só gerente/admin
+  const btnTroca=document.getElementById('pedTrocarVend');
+  if(btnTroca){
+    btnTroca.style.display = (ehAdmin||meuPapel==='gerente') ? '' : 'none';
+  }
   const L = dadosLoja(c.loja || meuLoja || LOJA_PADRAO);
   const pedidoHtml=
     '<div class="ped-doc" id="pedDoc">'+
@@ -2528,6 +2534,56 @@ function ajustarZoomInicialPedido(){
   aplicarZoomPedido();
 }
 document.getElementById('pedFechar') && (document.getElementById('pedFechar').onclick=()=>document.getElementById('pedBg').classList.remove('on'));
+// trocar vendedor do pedido (gerente/admin)
+document.getElementById('pedTrocarVend') && (document.getElementById('pedTrocarVend').onclick=async ()=>{
+  const c=pedidoAtualObj; if(!c) return;
+  const lista=await consultoresParaAtribuir();
+  if(!lista.length){ alert('Nenhum consultor disponível para atribuir.'); return; }
+  abrirModalTrocarVend(c, lista);
+});
+function abrirModalTrocarVend(c, lista){
+  let bg=document.getElementById('trocaVendBg');
+  if(bg) bg.remove();
+  bg=document.createElement('div');
+  bg.id='trocaVendBg';
+  bg.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(18,33,26,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  const opts=lista.map(p=>'<option value="'+p.id+'"'+(p.id===c.user_id?' selected':'')+'>'+esc(p.nome||'(sem nome)')+(p.papel==='gerente'?' (gerente)':'')+'</option>').join('');
+  bg.innerHTML=
+    '<div style="background:#fff;border-radius:16px;max-width:400px;width:100%;padding:24px">'+
+      '<h2 style="color:var(--leaf-dark);font-size:19px;margin-bottom:6px">Trocar vendedor do pedido</h2>'+
+      '<p style="color:var(--muted);font-size:13px;margin-bottom:16px">Vendedor atual: <b>'+esc(c.consultorNome||'—')+'</b></p>'+
+      '<label style="font-size:13px;font-weight:700;color:var(--ink);display:block;margin-bottom:6px">Novo vendedor</label>'+
+      '<select id="trocaVendSel" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:18px">'+opts+'</select>'+
+      '<div style="display:flex;gap:10px">'+
+        '<button class="btn ghost" id="trocaVendCancel" style="flex:1">Cancelar</button>'+
+        '<button class="btn" id="trocaVendOk" style="flex:1">Salvar</button>'+
+      '</div>'+
+      '<div id="trocaVendMsg" style="font-size:12.5px;font-weight:700;margin-top:10px;min-height:16px"></div>'+
+    '</div>';
+  document.body.appendChild(bg);
+  document.getElementById('trocaVendCancel').onclick=()=>bg.remove();
+  document.getElementById('trocaVendOk').onclick=async ()=>{
+    const sel=document.getElementById('trocaVendSel');
+    const novoId=sel.value;
+    const novo=lista.find(p=>p.id===novoId);
+    if(!novo){ return; }
+    const msg=document.getElementById('trocaVendMsg');
+    const btn=document.getElementById('trocaVendOk'); btn.disabled=true; btn.textContent='Salvando...';
+    try{
+      const {error}=await sb.from('cotacoes').update({user_id:novo.id, consultor_nome:novo.nome, atualizada_em:new Date().toISOString()}).eq('id',c.id);
+      if(error) throw error;
+      // atualiza em memória e re-renderiza
+      c.user_id=novo.id; c.consultor=novo.id; c.consultorNome=novo.nome;
+      bg.remove();
+      await carregarCotacoes();
+      renderMinhas && renderMinhas();
+      imprimirPedido(c.id, pedidoAtualCotacao);
+    }catch(e){
+      msg.style.color='var(--danger)'; msg.textContent='Erro: '+(e.message||e);
+      btn.disabled=false; btn.textContent='Salvar';
+    }
+  };
+}
 // zoom do pedido (botões + e -)
 function aplicarZoomPedido(){
   const doc=document.getElementById('pedContent');
@@ -2692,6 +2748,16 @@ async function carregarPerfis(){
     perfisCache=data||[];
   }catch(e){ console.warn('carregarPerfis',e); perfisCache=[]; }
 }
+// consultores para os quais o pedido pode ser reatribuído (gerente=equipe; admin=todos)
+async function consultoresParaAtribuir(){
+  if(!perfisCache.length) await carregarPerfis();
+  let lista=perfisCache.filter(p=>p.papel==='consultor'||p.papel==='gerente');
+  if(!ehAdmin && meuPapel==='gerente'){
+    // só a equipe do gerente (gerente_id = ele) + ele próprio
+    lista=lista.filter(p=>p.gerente_id===usuario.id || p.id===usuario.id);
+  }
+  return lista.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt'));
+}
 async function renderUsuarios(){
   const list=document.getElementById('usrList');
   if(!ehAdmin){ list.innerHTML='<div class="mc-vazio">Acesso restrito ao administrador.</div>'; return; }
@@ -2848,7 +2914,7 @@ function carteiraVisivel(){
   return carteira.filter(l=>norm(l.vendedor_nome||'')===meu);
 }
 
-function exportarCarteiraPdf(){
+async function exportarCarteiraPdf(){
   if(!window.jspdf){ alert('Biblioteca de PDF ainda carregando, tente de novo em instantes.'); return; }
   const linhas=cartLinhasFiltradas||[];
   if(!linhas.length){ alert('Não há itens na tela para exportar.'); return; }
@@ -2933,15 +2999,12 @@ function exportarCarteiraPdf(){
   let arquivo=null;
   try{ arquivo=new File([blob],nomeArq,{type:'application/pdf'}); }catch(_){}
 
-  // no celular: compartilha SÓ o arquivo (sem link nem texto)
+  // no celular: compartilha SÓ o arquivo (mesma lógica do PDF do pedido)
   if(ehCelular && arquivo && navigator.share && (!navigator.canShare || navigator.canShare({files:[arquivo]}))){
-    navigator.share({files:[arquivo]}).catch(()=>{
-      // se o usuário cancelar ou falhar, baixa o arquivo normalmente
-      baixarBlobPdf(blob, nomeArq);
-    });
-    return;
+    try{ await navigator.share({files:[arquivo]}); return; }
+    catch(e){ if(e && e.name==='AbortError'){ return; } }
   }
-  // no computador: baixa o arquivo
+  // computador (ou share indisponível): baixa o arquivo, sem gerar link visível
   baixarBlobPdf(blob, nomeArq);
 }
 function baixarBlobPdf(blob, nomeArq){
