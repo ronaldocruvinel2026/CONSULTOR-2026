@@ -874,7 +874,20 @@ body.login-aberto{overflow:hidden}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="cartBusca" type="text" placeholder="Buscar cliente, fazenda, produto ou nº do pedido...">
         </div>
-        <select id="cartVendFiltro" style="min-width:180px"><option value="ALL">Todos os vendedores</option></select>
+      </div>
+      <div class="cart-cli-filtro" id="cartFiltroVend" style="display:none">
+        <button class="mc-fbtn" id="cartVendBtn" type="button">＋ Selecionar consultores</button>
+        <div id="cartVendChips" class="cart-cli-chips"></div>
+        <button class="cart-cli-limpar" id="cartVendLimpar" type="button" style="display:none">Limpar consultores</button>
+      </div>
+      <div id="cartVendPanel" class="cart-cli-panel">
+        <div class="cart-cli-panel-busca">
+          <input id="cartVendBusca" type="text" placeholder="Buscar consultor para marcar...">
+        </div>
+        <div id="cartVendLista" class="cart-cli-lista"></div>
+        <div class="cart-cli-panel-foot">
+          <button class="btn ghost" id="cartVendFechar" type="button">Fechar</button>
+        </div>
       </div>
       <div class="cart-cli-filtro" id="cartFiltrosMultiplos">
         <button class="mc-fbtn" id="cartCliBtn" type="button">＋ Selecionar clientes</button>
@@ -1032,7 +1045,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260825125656";
+window.APP_VERSION="20260903114218";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2893,7 +2906,7 @@ let carteira=[];           // linhas (itens) da carteira
 let cartFiltro='aberto';
 let cartOrigem='TODAS';
 let cartBusca='';
-let cartVend='ALL';
+let cartVendedores=new Set(); // consultores selecionados no filtro múltiplo
 let cartProdutos=new Set();    // produtos selecionados no filtro múltiplo
 let cartFabricantes=new Set(); // fabricantes selecionados no filtro múltiplo
 let cartClientes=new Set(); // clientes selecionados no filtro múltiplo
@@ -3061,25 +3074,13 @@ function renderCarteira(){
     return;
   }
 
-  // preencher filtro de vendedores (só para quem vê todos ou a equipe)
-  const selV=document.getElementById('cartVendFiltro');
-  if(ehAdmin||meuPapel==='gerente'){
-    selV.style.display='';
-    // gerente: só os vendedores que aparecem na carteira visível dele
-    const base = ehAdmin ? carteira : carteiraVisivel();
-    const vends=[...new Set(base.map(l=>l.vendedor_nome).filter(Boolean))].sort();
-    if(selV.options.length!==vends.length+1){
-      selV.innerHTML='<option value="ALL">Todos os vendedores</option>'+vends.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
-      selV.value=cartVend;
-    }
-    if(cartVend!=='ALL') linhas=linhas.filter(l=>l.vendedor_nome===cartVend);
-  }else{ selV.style.display='none'; }
-
-  // filtros múltiplos de produto e fabricante (só gerente/admin)
+  // filtro de consultores (seleção múltipla, só admin/gerente)
   const mostrarMult = (ehAdmin||meuPapel==='gerente');
+  const fv=document.getElementById('cartFiltroVend'); if(fv) fv.style.display = mostrarMult?'':'none';
   const fp=document.getElementById('cartFiltroProd'); if(fp) fp.style.display = mostrarMult?'':'none';
   const ff=document.getElementById('cartFiltroFab'); if(ff) ff.style.display = mostrarMult?'':'none';
   if(mostrarMult){
+    if(cartVendedores.size>0) linhas=linhas.filter(l=>cartVendedores.has(l.vendedor_nome||'—'));
     if(cartProdutos.size>0) linhas=linhas.filter(l=>cartProdutos.has(l.produto_desc||'—'));
     if(cartFabricantes.size>0) linhas=linhas.filter(l=>cartFabricantes.has(l.fabricante||'—'));
   }
@@ -3397,13 +3398,12 @@ function nomeLojaCod(cod){
 /* filtros e busca */
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 (function(){ const b=document.getElementById('cartExportarPdf'); if(b) b.onclick=exportarCarteiraPdf; })();
-document.getElementById('cartVendFiltro').onchange=e=>{ cartVend=e.target.value; renderCarteira(); };
 
 /* ---- seleção múltipla de clientes na carteira ---- */
 // lista de clientes disponíveis, respeitando vendedor/empresa (não filtra por situação nem por cliente já marcado)
 function clientesDisponiveis(){
   let base=carteiraVisivel();
-  if((ehAdmin||meuPapel==='gerente') && cartVend!=='ALL') base=base.filter(l=>l.vendedor_nome===cartVend);
+  if((ehAdmin||meuPapel==='gerente') && cartVendedores.size>0) base=base.filter(l=>cartVendedores.has(l.vendedor_nome||'—'));
   if(cartOrigem!=='TODAS') base=base.filter(l=>(l.origem||'SETEC')===cartOrigem);
   return [...new Set(base.map(l=>l.cliente_nome||'—'))].sort((a,b)=>a.localeCompare(b,'pt'));
 }
@@ -3454,7 +3454,8 @@ function renderCartCliLista(){
 /* ---- filtros múltiplos genéricos (produto e fabricante) ---- */
 function valoresDisponiveis(campo){
   let base=carteiraVisivel();
-  if((ehAdmin||meuPapel==='gerente') && cartVend!=='ALL') base=base.filter(l=>l.vendedor_nome===cartVend);
+  // ao listar produtos/fabricantes, respeita os consultores marcados; ao listar consultores, mostra todos
+  if((ehAdmin||meuPapel==='gerente') && campo!=='vendedor_nome' && cartVendedores.size>0) base=base.filter(l=>cartVendedores.has(l.vendedor_nome||'—'));
   if(cartOrigem!=='TODAS') base=base.filter(l=>(l.origem||'SETEC')===cartOrigem);
   return [...new Set(base.map(l=>l[campo]||'—').filter(v=>v&&v!=='—'))].sort((a,b)=>a.localeCompare(b,'pt'));
 }
@@ -3506,6 +3507,12 @@ function montarFiltroMultiplo(cfg){
   cfg._renderChips=renderChips;
   return cfg;
 }
+const _filtroVend=montarFiltroMultiplo({
+  set:cartVendedores, campo:'vendedor_nome', singular:'consultor',
+  btnId:'cartVendBtn', panelId:'cartVendPanel', fecharId:'cartVendFechar',
+  buscaId:'cartVendBusca', listaId:'cartVendLista', chipsId:'cartVendChips',
+  limparId:'cartVendLimpar', remAttr:'vend-rem', cbAttr:'vend'
+});
 const _filtroProd=montarFiltroMultiplo({
   set:cartProdutos, campo:'produto_desc', singular:'produto',
   btnId:'cartProdBtn', panelId:'cartProdPanel', fecharId:'cartProdFechar',
@@ -3518,7 +3525,7 @@ const _filtroFab=montarFiltroMultiplo({
   buscaId:'cartFabBusca', listaId:'cartFabLista', chipsId:'cartFabChips',
   limparId:'cartFabLimpar', remAttr:'fab-rem', cbAttr:'fab'
 });
-function renderCartMultiChips(){ if(_filtroProd._renderChips)_filtroProd._renderChips(); if(_filtroFab._renderChips)_filtroFab._renderChips(); }
+function renderCartMultiChips(){ if(_filtroVend._renderChips)_filtroVend._renderChips(); if(_filtroProd._renderChips)_filtroProd._renderChips(); if(_filtroFab._renderChips)_filtroFab._renderChips(); }
 
 /* ---- importação do Excel do SIAGRI (só admin) ---- */
 function cartStatus(tipo,msg){
