@@ -1045,7 +1045,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260903114218";
+window.APP_VERSION="20260903194539";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2422,7 +2422,7 @@ function imprimirPedido(id, modoCotacao){
     const sub=(it.preco&&it.qtd)?it.preco*it.qtd:0;
     const obs=(it.obs||'').trim();
     const nomeCell=esc(it.prod||'')+(obs?('<div class="it-obs">'+esc(obs)+'</div>'):'');
-    return '<tr><td class="c">'+(it.qtd||'')+'</td><td class="c">'+esc(it.unid||'LT')+'</td><td>'+nomeCell+'</td><td>'+esc(it.cultura||'')+'</td><td class="r">'+(it.preco?brl(it.preco):'')+'</td><td class="r">'+(sub?brl(sub):'')+'</td></tr>';
+    return '<tr><td class="c">'+(it.qtd||'')+'</td><td class="c">'+esc(it.unid||'LT')+'</td><td>'+nomeCell+'</td><td>'+esc(it.cultura||'')+'</td><td class="r">'+(it.preco?('R$ '+brl(it.preco)):'')+'</td><td class="r">'+(sub?('R$ '+brl(sub)):'')+'</td></tr>';
   }).join('');
   // linhas vazias para preencher a folha A4 inteira (sem espaços em branco embaixo)
   let vazias=''; const min=18; for(let k=c.itens.length;k<min;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
