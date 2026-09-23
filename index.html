@@ -584,6 +584,7 @@ body.login-aberto{overflow:hidden}
       <button class="tab" id="tabCarteira">Carteira</button>
       <button class="tab" id="tabEstoque">Estoque</button>
       <button class="tab" id="tabMargem" style="display:none">Margens & Vencimentos</button>
+      <button class="tab" id="tabTempo" style="display:none">🌦 Tempo</button>
       <button class="tab" id="tabUsuarios" style="display:none">Usuários</button>
     </div>
   </div>
@@ -612,6 +613,7 @@ body.login-aberto{overflow:hidden}
         <button id="vGrid" class="on">Cards</button>
         <button id="vTable">Tabela</button>
       </div>
+      <button id="btnImprimirLista" class="btn" style="background:var(--leaf);color:#fff;border-color:var(--leaf);font-weight:700">🖨 Imprimir lista</button>
     </div>
     <div class="chips" id="chips">
       <div class="chip on" data-cat="ALL">Todos</div>
@@ -1007,6 +1009,32 @@ body.login-aberto{overflow:hidden}
   </main>
 </div>
 
+<div class="panel" id="tempoView">
+  <main>
+    <div class="wrap">
+      <div class="tempo-topo">
+        <div class="tempo-busca-row">
+          <div class="tempo-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="tempoCidadeInput" type="text" placeholder="Digite uma cidade e tecle Enter...">
+          </div>
+          <button class="tempo-btn-loc" id="tempoBtnLoc" title="Usar minha localização">📍 Minha localização</button>
+          <button class="tempo-btn-mapa" id="tempoBtnMapa" title="Escolher no mapa">🗺 Mapa</button>
+        </div>
+        <div id="tempoSugestoes" class="tempo-sugestoes"></div>
+      </div>
+      <div id="tempoConteudo" class="tempo-conteudo">
+        <div class="tempo-vazio">Escolha um local para ver a previsão do tempo.</div>
+      </div>
+      <div id="tempoMapaWrap" class="tempo-mapa-wrap" style="display:none">
+        <div class="tempo-mapa-info">Toque no mapa para escolher o local</div>
+        <div id="tempoMapa" class="tempo-mapa"></div>
+        <button class="btn ghost" id="tempoMapaFechar" style="margin-top:10px">Fechar mapa</button>
+      </div>
+    </div>
+  </main>
+</div>
+
 <div class="panel" id="usuariosView">
   <main>
     <div class="wrap">
@@ -1047,7 +1075,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260918210524";
+window.APP_VERSION="20260922225438";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1504,6 +1532,116 @@ function filtered(){
   });
   return r;
 }
+// ===== IMPRIMIR LISTA DE PREÇOS =====
+function abrirModalImprimirLista(){
+  const camp=campanhaPorId(campanhaSel);
+  if(!camp){ alert('Selecione uma campanha primeiro.'); return; }
+  const fabs=[...new Set((camp.itens||[]).map(i=>i.fab).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt'));
+  let bg=document.getElementById('imprListaBg'); if(bg) bg.remove();
+  bg=document.createElement('div');
+  bg.id='imprListaBg';
+  bg.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(18,33,26,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  const optsFab='<option value="__TODOS__">Todos os fabricantes (juntos)</option>'+
+    '<option value="__SEPARADO__">Todos, separados por fabricante</option>'+
+    fabs.map(f=>'<option value="'+esc(f)+'">Só '+esc(f)+'</option>').join('');
+  bg.innerHTML=
+    '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:24px">'+
+      '<h2 style="color:var(--leaf-dark);font-size:19px;margin-bottom:4px">Imprimir lista de preços</h2>'+
+      '<p style="color:var(--muted);font-size:13px;margin-bottom:16px">Campanha: <b>'+esc(camp.nome)+'</b></p>'+
+      '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Fabricante</label>'+
+      '<select id="imprFab" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:14px">'+optsFab+'</select>'+
+      '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Ordenar por</label>'+
+      '<select id="imprOrd" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:18px">'+
+        '<option value="ia">Princípio Ativo</option>'+
+        '<option value="prod">Produto (A-Z)</option>'+
+        '<option value="fab">Fabricante</option>'+
+      '</select>'+
+      '<div style="display:flex;gap:10px">'+
+        '<button class="btn ghost" id="imprCancel" style="flex:1">Cancelar</button>'+
+        '<button class="btn" id="imprOk" style="flex:1;background:var(--leaf);color:#fff;border-color:var(--leaf)">Gerar impressão</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(bg);
+  document.getElementById('imprCancel').onclick=()=>bg.remove();
+  document.getElementById('imprOk').onclick=()=>{
+    const fab=document.getElementById('imprFab').value;
+    const ord=document.getElementById('imprOrd').value;
+    bg.remove();
+    gerarImpressaoLista(camp, fab, ord);
+  };
+}
+function gerarImpressaoLista(camp, fabEscolhido, ord){
+  const hoje=new Date();
+  const dvMax=vencToDate(camp.venc_max||'');
+  const precoEm=(it,data)=>precoCampanhaItem(it, data);
+  let itens=(camp.itens||[]).slice();
+  if(fabEscolhido!=='__TODOS__' && fabEscolhido!=='__SEPARADO__'){
+    itens=itens.filter(i=>i.fab===fabEscolhido);
+  }
+  const ordenar=(arr)=>arr.sort((a,b)=>{
+    if(ord==='prod') return (a.prod||'').localeCompare(b.prod||'','pt');
+    if(ord==='fab') return ((a.fab||'')+(a.prod||'')).localeCompare((b.fab||'')+(b.prod||''),'pt');
+    return ((a.ia||'')+(a.prod||'')).localeCompare((b.ia||'')+(b.prod||''),'pt');
+  });
+  const fmtData=(d)=>{ if(!d) return ''; const dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0'); return dd+'/'+mm+'/'+d.getFullYear(); };
+  const colVenc = dvMax ? fmtData(dvMax) : 'Prazo';
+  const safra = camp.nome || 'SAFRA 26/27';
+  function tabela(lista){
+    ordenar(lista);
+    const linhas=lista.map(it=>{
+      const pv=precoEm(it, hoje);
+      const pp=precoEm(it, dvMax||hoje);
+      return '<tr>'+
+        '<td>'+esc(it.fab||'—')+'</td>'+
+        '<td class="pl-prod">'+esc(it.prod||'—')+'</td>'+
+        '<td class="pl-ia">'+esc(it.ia||'')+'</td>'+
+        '<td class="pl-preco">'+(pv?('R$ '+brl(pv)):'—')+'</td>'+
+        '<td class="pl-preco">'+(pp?('R$ '+brl(pp)):'—')+'</td>'+
+      '</tr>';
+    }).join('');
+    return '<table class="pl-tbl"><thead><tr>'+
+      '<th>Fornecedor</th><th>Produto</th><th>Princípio Ativo</th>'+
+      '<th class="pl-preco">À VISTA</th><th class="pl-preco">'+esc(colVenc)+'</th>'+
+      '</tr></thead><tbody>'+linhas+'</tbody></table>';
+  }
+  let corpo='';
+  if(fabEscolhido==='__SEPARADO__'){
+    const fabs=[...new Set(itens.map(i=>i.fab).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt'));
+    fabs.forEach((f,idx)=>{
+      corpo+='<h2 class="pl-titulo">LISTA DE PREÇOS '+esc(f)+' '+esc(safra)+'</h2>'+
+        tabela(itens.filter(i=>i.fab===f))+(idx<fabs.length-1?'<div class="pl-quebra"></div>':'');
+    });
+  }else{
+    const tituloFab = (fabEscolhido==='__TODOS__') ? '' : (esc(fabEscolhido)+' ');
+    corpo='<h2 class="pl-titulo">LISTA DE PREÇOS '+tituloFab+esc(safra)+'</h2>'+tabela(itens);
+  }
+  const estilos='@page{size:landscape;margin:10mm}'+
+    '*{box-sizing:border-box}'+
+    'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:14px;color:#111}'+
+    '.pl-cab{text-align:center;margin-bottom:4px}'+
+    '.pl-cab img{height:52px}'+
+    '.pl-titulo{font-size:20px;font-weight:800;text-align:center;margin:10px 0 12px;color:#12211a;text-transform:uppercase}'+
+    '.pl-tbl{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12.5px}'+
+    '.pl-tbl th{background:#1f3d2e;color:#fff;padding:7px 8px;text-align:left;font-size:12px;border:1px solid #163023}'+
+    '.pl-tbl th.pl-preco{text-align:right}'+
+    '.pl-tbl td{padding:6px 8px;border:1px solid #ccc}'+
+    '.pl-tbl tbody tr:nth-child(even){background:#f4f1e8}'+
+    '.pl-prod{font-weight:700}'+
+    '.pl-ia{font-style:italic;color:#444}'+
+    '.pl-preco{text-align:right;font-weight:700;white-space:nowrap}'+
+    '.pl-quebra{page-break-after:always}';
+  const logo=document.querySelector('.brand img, .logo img, header img');
+  const logoSrc=logo?logo.src:'';
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Preços</title><style>'+estilos+'</style></head><body>'+
+    (logoSrc?('<div class="pl-cab"><img src="'+logoSrc+'"></div>'):'')+
+    corpo+
+    '<'+'script>window.onload=function(){setTimeout(function(){window.print();},400);}<'+'/script>'+
+    '</body></html>';
+  const w=window.open('','_blank');
+  if(!w){ alert('Permita pop-ups para gerar a impressão.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 function render(){
   updatePagBar();
   const c=document.getElementById('content');
@@ -1913,6 +2051,7 @@ async function aoLogar(user){
   const tu=document.getElementById('tabUsuarios'); if(tu) tu.style.display = ehAdmin ? 'inline-block' : 'none';
   // Margens & Vencimentos: apenas admin (consultor/gerente não acessam)
   const tm=document.getElementById('tabMargem'); if(tm) tm.style.display = ehAdmin ? 'inline-block' : 'none';
+  const ttp=document.getElementById('tabTempo'); if(ttp) ttp.style.display = ehAdmin ? 'inline-block' : 'none';
   await carregarCotacoes();
   await carregarCarteira();
   await carregarEstoque();
@@ -1937,6 +2076,7 @@ async function fazerLogout(){
   document.body.classList.remove('is-admin'); document.body.classList.remove('is-gerente');
   const tu=document.getElementById('tabUsuarios'); if(tu) tu.style.display='none';
   const tm=document.getElementById('tabMargem'); if(tm) tm.style.display='none';
+  const ttp=document.getElementById('tabTempo'); if(ttp) ttp.style.display='none';
   atualizarConsultorUI();
   showTab('list');
   abrirLogin(); // volta a exigir login
@@ -4077,10 +4217,10 @@ const _efj=document.getElementById('estFileJsm');   if(_efj) _efj.onchange=funct
 
 function showTab(t){
   // proteção: abas restritas só para admin
-  if((t==='margem'||t==='usuarios') && !ehAdmin){ t='list'; }
+  if((t==='margem'||t==='usuarios'||t==='tempo') && !ehAdmin){ t='list'; }
   // lembra a aba atual para restaurar ao atualizar a página
   try{ localStorage.setItem('setec_aba', t); }catch(e){}
-  ['list','cotacao','minhas','margem','usuarios','carteira','estoque'].forEach(x=>{
+  ['list','cotacao','minhas','margem','usuarios','carteira','estoque','tempo'].forEach(x=>{
     const v=document.getElementById(x==='list'?'listView':x+'View');
     if(v){ if(x==='list') v.style.display=(t==='list')?'block':'none'; else v.classList.toggle('on',t===x); }
   });
@@ -4088,6 +4228,7 @@ function showTab(t){
   document.getElementById('tabCotacao').classList.toggle('on',t==='cotacao');
   document.getElementById('tabMinhas').classList.toggle('on',t==='minhas');
   document.getElementById('tabMargem').classList.toggle('on',t==='margem');
+  const tt=document.getElementById('tabTempo'); if(tt) tt.classList.toggle('on',t==='tempo');
   const tu=document.getElementById('tabUsuarios'); if(tu) tu.classList.toggle('on',t==='usuarios');
   const tc=document.getElementById('tabCarteira'); if(tc) tc.classList.toggle('on',t==='carteira');
   const te=document.getElementById('tabEstoque'); if(te) te.classList.toggle('on',t==='estoque');
@@ -4098,6 +4239,7 @@ function showTab(t){
   if(t==='usuarios'){renderUsuarios();}
   if(t==='carteira'){renderCarteira();}
   if(t==='estoque'){renderEstoque();}
+  if(t==='tempo'){ initTempo(); }
   // botão flutuante "+ Adicionar produto" e barra fixa só na aba de cotação
   const fab=document.getElementById('fabAdd');
   if(fab) fab.style.display=(t==='cotacao')?'flex':'none';
@@ -4107,6 +4249,7 @@ function showTab(t){
 document.getElementById('tabList').onclick=()=>showTab('list');
 document.getElementById('tabCotacao').onclick=()=>showTab('cotacao');
 document.getElementById('tabMargem').onclick=()=>showTab('margem');
+document.getElementById('tabTempo') && (document.getElementById('tabTempo').onclick=()=>showTab('tempo'));
 document.getElementById('tabUsuarios').onclick=()=>showTab('usuarios');
 document.getElementById('tabCarteira').onclick=()=>showTab('carteira');
 document.getElementById('tabEstoque').onclick=()=>showTab('estoque');
@@ -4115,6 +4258,7 @@ document.getElementById('fabSel').onchange=e=>{state.fab=e.target.value;render()
 document.getElementById('sortSel').onchange=e=>{state.sort=e.target.value;render();};
 document.getElementById('vGrid').onclick=()=>{state.view='grid';document.getElementById('vGrid').classList.add('on');document.getElementById('vTable').classList.remove('on');render();};
 document.getElementById('vTable').onclick=()=>{state.view='table';document.getElementById('vTable').classList.add('on');document.getElementById('vGrid').classList.remove('on');render();};
+document.getElementById('btnImprimirLista') && (document.getElementById('btnImprimirLista').onclick=abrirModalImprimirLista);
 document.querySelectorAll('.chip').forEach(ch=>ch.onclick=()=>{state.cat=ch.dataset.cat;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x.dataset.cat===state.cat));render();});
 
 // tela para o usuário definir a nova senha (após clicar no link do email)
