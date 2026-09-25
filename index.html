@@ -1075,7 +1075,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260922225438";
+window.APP_VERSION="20260925181401";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1629,13 +1629,23 @@ function gerarImpressaoLista(camp, fabEscolhido, ord){
     '.pl-prod{font-weight:700}'+
     '.pl-ia{font-style:italic;color:#444}'+
     '.pl-preco{text-align:right;font-weight:700;white-space:nowrap}'+
-    '.pl-quebra{page-break-after:always}';
+    '.pl-quebra{page-break-after:always}'+
+    '.pl-barra{position:sticky;top:0;background:#12211a;padding:12px 16px;display:flex;gap:10px;align-items:center;margin:-14px -14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.2)}'+
+    '.pl-barra button{padding:10px 18px;border:none;border-radius:9px;font-size:14px;font-weight:700;font-family:Arial,sans-serif;cursor:pointer}'+
+    '.pl-barra .b-print{background:#2f6b4f;color:#fff}'+
+    '.pl-barra .b-fechar{background:#fff;color:#333;margin-left:auto}'+
+    '.pl-barra span{color:#fff;font-size:13px;opacity:.85}'+
+    '@media print{.pl-barra{display:none!important}body{padding:0!important}}';
   const logo=document.querySelector('.brand img, .logo img, header img');
   const logoSrc=logo?logo.src:'';
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Preços</title><style>'+estilos+'</style></head><body>'+
+    '<div class="pl-barra">'+
+      '<button class="b-print" onclick="window.print()">🖨 Imprimir</button>'+
+      '<span>Para salvar em PDF: toque em Imprimir e escolha "Salvar como PDF"</span>'+
+      '<button class="b-fechar" onclick="window.close()">Fechar</button>'+
+    '</div>'+
     (logoSrc?('<div class="pl-cab"><img src="'+logoSrc+'"></div>'):'')+
     corpo+
-    '<'+'script>window.onload=function(){setTimeout(function(){window.print();},400);}<'+'/script>'+
     '</body></html>';
   const w=window.open('','_blank');
   if(!w){ alert('Permita pop-ups para gerar a impressão.'); return; }
@@ -2218,24 +2228,32 @@ function limparNovaCotacao(){
 async function carregarCotacoes(){
   if(!sbOk||!usuario){ cotSalvas=[]; return; }
   try{
-    let q=sb.from('cotacoes').select('*').order('criada_em',{ascending:false});
-    // filtro por papel: admin vê todas; gerente vê a própria equipe; consultor vê só as dele
-    if(meuPapel==='admin' || ehAdmin){
-      // sem filtro: todas
-    } else if(meuPapel==='gerente'){
-      // as do gerente + as dos consultores cuja gerente_id é ele
-      let idsEquipe=[usuario.id];
+    // monta os filtros por papel e devolve uma query nova a cada página
+    let idsEquipe=null;
+    if(!(meuPapel==='admin'||ehAdmin) && meuPapel==='gerente'){
+      idsEquipe=[usuario.id];
       try{
         const {data:eq}=await sb.from('perfis').select('id').eq('gerente_id',usuario.id);
         (eq||[]).forEach(p=>{ if(p.id) idsEquipe.push(p.id); });
       }catch(_){}
-      q=q.in('user_id', idsEquipe);
-    } else {
-      // consultor: só as próprias
-      q=q.eq('user_id', usuario.id);
     }
-    const {data,error}=await q;
-    if(error) throw error;
+    const novaQuery=()=>{
+      let q=sb.from('cotacoes').select('*').order('criada_em',{ascending:false});
+      if(meuPapel==='admin'||ehAdmin){ /* todas */ }
+      else if(meuPapel==='gerente'){ q=q.in('user_id', idsEquipe); }
+      else { q=q.eq('user_id', usuario.id); }
+      return q;
+    };
+    // busca em blocos de 1000 para não parar no limite padrão do Supabase
+    const bloco=1000; let desde=0, data=[];
+    while(true){
+      const {data:parte,error}=await novaQuery().range(desde, desde+bloco-1);
+      if(error) throw error;
+      if(!parte || !parte.length) break;
+      data=data.concat(parte);
+      if(parte.length<bloco) break;
+      desde+=bloco;
+    }
     cotSalvas=(data||[]).map(r=>({
       id:r.id, user_id:r.user_id, consultor:r.user_id, consultorNome:r.consultor_nome,
       cliente:r.cliente, fazenda:r.fazenda, cpf:r.cpf, mun:r.municipio,
@@ -3123,9 +3141,18 @@ let meuVendedorSiagri=null; // nome do vendedor no SIAGRI vinculado ao usuário
 async function carregarCarteira(){
   if(!sbOk) return;
   try{
-    const {data,error}=await sb.from('carteira').select('*').order('cliente_nome');
-    if(error) throw error;
-    carteira=data||[];
+    // busca em blocos de 1000 para não parar no limite padrão do Supabase
+    const bloco=1000;
+    let desde=0, tudo=[];
+    while(true){
+      const {data:parte,error}=await sb.from('carteira').select('*').order('cliente_nome').range(desde, desde+bloco-1);
+      if(error) throw error;
+      if(!parte || !parte.length) break;
+      tudo=tudo.concat(parte);
+      if(parte.length<bloco) break;  // última página
+      desde+=bloco;
+    }
+    carteira=tudo;
   }catch(e){ console.warn('carregarCarteira',e); carteira=[]; }
 }
 
@@ -4009,9 +4036,17 @@ function nomeEmpresa(cod){ return EMPRESAS[cod] || ('Empresa '+cod); }
 async function carregarEstoque(){
   if(!sbOk) return;
   try{
-    const {data,error}=await sb.from('estoque').select('*');
-    if(error) throw error;
-    estoque=data||[];
+    const bloco=1000;
+    let desde=0, tudo=[];
+    while(true){
+      const {data:parte,error}=await sb.from('estoque').select('*').order('id',{ascending:true}).range(desde, desde+bloco-1);
+      if(error) throw error;
+      if(!parte || !parte.length) break;
+      tudo=tudo.concat(parte);
+      if(parte.length<bloco) break;
+      desde+=bloco;
+    }
+    estoque=tudo;
   }catch(e){ console.warn('carregarEstoque',e); estoque=[]; }
 }
 
