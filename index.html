@@ -17,6 +17,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{--ink:#12211a;--paper:#f6f4ec;--card:#fff;--leaf:#2f6b4f;--leaf-dark:#1f4a37;--leaf-soft:#e5efe7;--gold:#c8952b;--gold-soft:#f6ecd4;--line:#e2ddce;--muted:#6d7a6f;--danger:#c0392b}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -556,6 +558,84 @@ body.login-aberto{overflow:hidden}
   .ped-doc .cad .h{background:#e0e0e0!important;color:#000!important}
   .ped-doc .ped .lbl{background:#000!important;color:#fff!important}
 }
+
+.mc-carregarmais{text-align:center;padding:16px 0 4px}
+.mc-carregarmais .btn{min-width:260px}
+
+/* ================= ABA PREVISÃO DO TEMPO ================= */
+#tempoView main{padding:0}
+#tempoView .wrap{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+.tempo-topo{position:relative;margin-bottom:18px}
+.tempo-busca-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tempo-search{position:relative;flex:1;min-width:240px;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #dfe3ea;border-radius:12px;padding:0 14px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+.tempo-search svg{color:#8a94a6;flex:none}
+.tempo-search input{flex:1;border:0;outline:0;padding:13px 0;font-size:15px;background:transparent;color:#1a2233}
+.tempo-btn-loc,.tempo-btn-mapa{border:1px solid #dfe3ea;background:#fff;border-radius:12px;padding:12px 15px;font-size:14px;font-weight:600;color:#2a3450;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(16,24,40,.06);transition:.15s}
+.tempo-btn-loc:hover,.tempo-btn-mapa:hover{background:#f3f6fb;border-color:#c3ccdb}
+.tempo-sugestoes{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:40;background:#fff;border:1px solid #e3e7ef;border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.14);overflow:hidden;display:none}
+.tempo-sugestoes.on{display:block}
+.tempo-sug-item{padding:11px 15px;cursor:pointer;font-size:14px;color:#273047;border-bottom:1px solid #f1f3f8;display:flex;justify-content:space-between;gap:10px}
+.tempo-sug-item:last-child{border-bottom:0}
+.tempo-sug-item:hover{background:#f3f7ff}
+.tempo-sug-item .uf{color:#8a94a6;font-size:12px}
+.tempo-conteudo{margin-top:4px}
+.tempo-vazio{text-align:center;color:#8a94a6;padding:60px 20px;font-size:15px;background:#fff;border:1px dashed #d6dbe6;border-radius:16px}
+.tempo-carregando{text-align:center;color:#5a6577;padding:50px 20px;font-size:15px}
+.tempo-erro{text-align:center;color:#b4232a;padding:30px 20px;font-size:14px;background:#fff3f3;border:1px solid #f3cccc;border-radius:14px}
+/* HERO */
+.tempo-hero{position:relative;border-radius:22px;overflow:hidden;color:#fff;padding:26px 26px 22px;box-shadow:0 14px 40px rgba(16,24,40,.18);background:linear-gradient(135deg,#2b6fe0,#5aa6f5)}
+.tempo-hero.noite{background:linear-gradient(135deg,#1b2a52,#30457e)}
+.tempo-hero.chuva{background:linear-gradient(135deg,#3a5a78,#5d7d99)}
+.tempo-hero.nublado{background:linear-gradient(135deg,#5b6a82,#8795ab)}
+.tempo-hero.tempest{background:linear-gradient(135deg,#2a2f45,#4b4f6b)}
+.tempo-hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.tempo-local{font-size:20px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.tempo-local .uf2{font-size:14px;font-weight:500;opacity:.85}
+.tempo-agora-h{font-size:13px;opacity:.85;margin-top:2px}
+.tempo-hero-main{display:flex;align-items:center;gap:18px;margin:14px 0 6px;flex-wrap:wrap}
+.tempo-emoji{font-size:74px;line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.2))}
+.tempo-temp{font-size:66px;font-weight:800;line-height:1}
+.tempo-temp sup{font-size:26px;font-weight:600;vertical-align:top;opacity:.9}
+.tempo-desc{font-size:17px;font-weight:600;text-transform:capitalize}
+.tempo-sens{font-size:13px;opacity:.85;margin-top:2px}
+.tempo-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:18px}
+.tempo-metric{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:12px 14px;backdrop-filter:blur(4px)}
+.tempo-metric .mt-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;opacity:.85;display:flex;align-items:center;gap:6px}
+.tempo-metric .mt-val{font-size:20px;font-weight:700;margin-top:4px}
+.tempo-metric .mt-sub{font-size:11px;opacity:.8}
+/* seção título */
+.tempo-sec-tit{font-size:14px;font-weight:700;color:#1a2233;text-transform:uppercase;letter-spacing:.5px;margin:26px 2px 12px;display:flex;align-items:center;gap:8px}
+/* HORAS */
+.tempo-horas{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:thin}
+.tempo-hora{flex:none;width:76px;text-align:center;background:#fff;border:1px solid #e9edf4;border-radius:14px;padding:12px 6px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.tempo-hora .h-hora{font-size:12px;color:#6a7488;font-weight:600}
+.tempo-hora .h-emoji{font-size:26px;margin:6px 0 4px}
+.tempo-hora .h-temp{font-size:16px;font-weight:700;color:#1a2233}
+.tempo-hora .h-chuva{font-size:11px;color:#2b6fe0;font-weight:600;margin-top:3px}
+.tempo-hora .h-chuva.zero{color:#b7bdc9;font-weight:500}
+/* DIAS */
+.tempo-dias{background:#fff;border:1px solid #eaeef5;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.tempo-dia{display:grid;grid-template-columns:96px 44px 1fr 110px;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #f1f3f8}
+.tempo-dia:last-child{border-bottom:0}
+.tempo-dia:hover{background:#fafbfe}
+.tempo-dia .d-nome{font-size:14px;font-weight:600;color:#273047;text-transform:capitalize}
+.tempo-dia .d-emoji{font-size:26px;text-align:center}
+.tempo-dia .d-chuva{font-size:12px;color:#2b6fe0;font-weight:600}
+.tempo-dia .d-chuva.zero{color:#b7bdc9;font-weight:500}
+.tempo-dia .d-temps{display:flex;align-items:center;gap:10px;justify-content:flex-end;font-size:15px}
+.tempo-dia .d-max{font-weight:800;color:#1a2233}
+.tempo-dia .d-min{color:#8a94a6;font-weight:600}
+.tempo-dia .d-barra{grid-column:1/-1;height:5px;border-radius:4px;background:#eef1f6;overflow:hidden;position:relative;margin-top:2px;display:none}
+/* MAPA */
+.tempo-mapa-wrap{margin-top:16px;background:#fff;border:1px solid #e9edf4;border-radius:16px;padding:14px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.tempo-mapa-info{font-size:13px;color:#5a6577;margin-bottom:10px}
+.tempo-mapa{width:100%;height:360px;border-radius:12px;overflow:hidden;z-index:1}
+.tempo-rodape{text-align:center;font-size:12px;color:#9aa3b2;margin-top:24px}
+@media(max-width:640px){
+  .tempo-temp{font-size:54px}.tempo-emoji{font-size:60px}
+  .tempo-dia{grid-template-columns:84px 38px 1fr 92px;gap:8px;padding:12px 12px}
+  .tempo-local{font-size:17px}
+}
 </style>
 </head>
 <body>
@@ -1075,7 +1155,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20260925181401";
+window.APP_VERSION="20261006111509";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2346,6 +2426,9 @@ function totalCot(c){
 let mcFiltro='todas';
 let mcBusca='';
 let mcAberta={};   // cotações com itens expandidos
+let mcPagina=1;            // paginação da lista (lotes)
+const MC_LOTE=40;          // quantos cards por lote
+let _mcBuscaTimer=null;    // debounce da busca
 function atualizarContadoresMC(){
   const cont={todas:cotSalvas.length,
     cotacao:cotSalvas.filter(c=>c.status!=='pedido'&&c.status!=='perdida').length,
@@ -2359,9 +2442,9 @@ function atualizarContadoresMC(){
   });
 }
 document.querySelectorAll('#mcFiltros .mc-fbtn').forEach(b=>{
-  b.onclick=()=>{ mcFiltro=b.dataset.f; renderMinhas(); };
+  b.onclick=()=>{ mcFiltro=b.dataset.f; mcPagina=1; renderMinhas(); };
 });
-document.getElementById('mcBusca').oninput=e=>{ mcBusca=e.target.value; renderMinhas(); };
+document.getElementById('mcBusca').oninput=e=>{ mcBusca=e.target.value; mcPagina=1; clearTimeout(_mcBuscaTimer); _mcBuscaTimer=setTimeout(renderMinhas,250); };
 
 function renderMinhas(){
   const list=document.getElementById('mcList');
@@ -2396,7 +2479,9 @@ function renderMinhas(){
   const icoCot='<svg class="mc-ico cot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>';
   const icoPed='<svg class="mc-ico ped" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
   const icoPerd='<svg class="mc-ico perd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>';
-  list.innerHTML=minhas.map(c=>{
+  const totalFiltrado=minhas.length;
+  const visiveis=minhas.slice(0, mcPagina*MC_LOTE);
+  list.innerHTML=visiveis.map(c=>{
     const t=totalCot(c);
     const dt=(c.criada instanceof Date)?c.criada.toLocaleDateString('pt-BR'):'';
     const ehPedido=c.status==='pedido';
@@ -2461,6 +2546,14 @@ function renderMinhas(){
       '</div>'+itensHtml+
       '<div class="mc-btns">'+botoes+'</div></div>';
   }).join('');
+  // botão "Carregar mais" quando há mais do que o lote atual
+  if(totalFiltrado>visiveis.length){
+    const faltam=totalFiltrado-visiveis.length;
+    const proximo=Math.min(MC_LOTE, faltam);
+    list.innerHTML += '<div class="mc-carregarmais"><button class="btn ghost" id="mcCarregarMais">Carregar mais '+proximo+' (restam '+faltam+')</button></div>';
+    const bm=document.getElementById('mcCarregarMais');
+    if(bm) bm.onclick=()=>{ mcPagina++; renderMinhas(); };
+  }
   list.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=()=>{
     const id=+el.dataset.toggle;
     mcAberta[id]=!mcAberta[id];
@@ -4249,6 +4342,215 @@ function importarEstoque(ev, origem){
 }
 const _efs=document.getElementById('estFileSetec'); if(_efs) _efs.onchange=function(ev){ importarEstoque(ev,'SETEC'); };
 const _efj=document.getElementById('estFileJsm');   if(_efj) _efj.onchange=function(ev){ importarEstoque(ev,'JSM'); };
+
+/* =================== PREVISÃO DO TEMPO (Open-Meteo, grátis) =================== */
+var _tempoIniciado=false, _tempoMapa=null, _tempoMapaMarker=null, _tempoBuscaTimer=null, _tempoLocalAtual=null;
+
+function initTempo(){
+  if(_tempoIniciado){ return; }
+  _tempoIniciado=true;
+  const inp=document.getElementById('tempoCidadeInput');
+  const sug=document.getElementById('tempoSugestoes');
+  const btnLoc=document.getElementById('tempoBtnLoc');
+  const btnMapa=document.getElementById('tempoBtnMapa');
+  const mapaWrap=document.getElementById('tempoMapaWrap');
+  const mapaFechar=document.getElementById('tempoMapaFechar');
+
+  if(inp){
+    inp.addEventListener('input',()=>{
+      const q=inp.value.trim();
+      clearTimeout(_tempoBuscaTimer);
+      if(q.length<2){ sug.classList.remove('on'); sug.innerHTML=''; return; }
+      _tempoBuscaTimer=setTimeout(()=>tempoBuscarCidades(q),320);
+    });
+    inp.addEventListener('keydown',(e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); const first=sug.querySelector('.tempo-sug-item'); if(first){ first.click(); } }
+    });
+  }
+  document.addEventListener('click',(e)=>{ if(sug && !sug.contains(e.target) && e.target!==inp){ sug.classList.remove('on'); } });
+
+  if(btnLoc){
+    btnLoc.onclick=()=>{
+      if(!navigator.geolocation){ tempoRenderErro('Seu navegador não permite geolocalização.'); return; }
+      tempoRenderCarregando('Obtendo sua localização...');
+      navigator.geolocation.getCurrentPosition(
+        (p)=>{ tempoCarregar(p.coords.latitude, p.coords.longitude, null); },
+        ()=>{ tempoRenderErro('Não foi possível obter sua localização. Permita o acesso ou use a busca por cidade.'); },
+        {enableHighAccuracy:true, timeout:10000}
+      );
+    };
+  }
+  if(btnMapa){
+    btnMapa.onclick=()=>{
+      const show = mapaWrap.style.display==='none';
+      mapaWrap.style.display = show ? 'block' : 'none';
+      if(show){ tempoInitMapa(); }
+    };
+  }
+  if(mapaFechar){ mapaFechar.onclick=()=>{ mapaWrap.style.display='none'; }; }
+
+  // tenta carregar automaticamente Uberlândia na primeira abertura
+  if(!_tempoLocalAtual){ tempoCarregar(-18.9186,-48.2772,{nome:'Uberlândia',uf:'MG'}); }
+}
+
+function tempoBuscarCidades(q){
+  const sug=document.getElementById('tempoSugestoes');
+  const url='https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=6&language=pt&format=json';
+  fetch(url).then(r=>r.json()).then(j=>{
+    const lista=(j&&j.results)||[];
+    if(!lista.length){ sug.innerHTML='<div class="tempo-sug-item" style="color:#8a94a6;cursor:default">Nenhuma cidade encontrada</div>'; sug.classList.add('on'); return; }
+    sug.innerHTML=lista.map(c=>{
+      const uf=[c.admin1,c.country_code].filter(Boolean).join(' · ');
+      return '<div class="tempo-sug-item" data-lat="'+c.latitude+'" data-lon="'+c.longitude+'" data-nome="'+(c.name||'').replace(/"/g,'')+'" data-uf="'+(c.admin1||'').replace(/"/g,'')+'"><span>'+(c.name||'')+'</span><span class="uf">'+uf+'</span></div>';
+    }).join('');
+    sug.classList.add('on');
+    sug.querySelectorAll('.tempo-sug-item[data-lat]').forEach(el=>{
+      el.onclick=()=>{
+        sug.classList.remove('on');
+        document.getElementById('tempoCidadeInput').value=el.dataset.nome;
+        tempoCarregar(parseFloat(el.dataset.lat), parseFloat(el.dataset.lon), {nome:el.dataset.nome, uf:el.dataset.uf});
+      };
+    });
+  }).catch(()=>{ sug.innerHTML='<div class="tempo-sug-item" style="color:#b4232a;cursor:default">Erro na busca</div>'; sug.classList.add('on'); });
+}
+
+function tempoInitMapa(){
+  if(typeof L==='undefined'){ document.getElementById('tempoMapa').innerHTML='<div style="padding:20px;color:#b4232a">Mapa indisponível (sem internet para carregar o Leaflet).</div>'; return; }
+  if(_tempoMapa){ setTimeout(()=>_tempoMapa.invalidateSize(),100); return; }
+  const c=_tempoLocalAtual||{lat:-18.9186,lon:-48.2772};
+  _tempoMapa=L.map('tempoMapa').setView([c.lat,c.lon],7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_tempoMapa);
+  _tempoMapa.on('click',(e)=>{
+    const la=e.latlng.lat, lo=e.latlng.lng;
+    if(_tempoMapaMarker){ _tempoMapaMarker.setLatLng([la,lo]); } else { _tempoMapaMarker=L.marker([la,lo]).addTo(_tempoMapa); }
+    tempoCarregar(la,lo,null);
+  });
+  setTimeout(()=>_tempoMapa.invalidateSize(),120);
+}
+
+function tempoRenderCarregando(msg){ document.getElementById('tempoConteudo').innerHTML='<div class="tempo-carregando">'+(msg||'Carregando previsão...')+'</div>'; }
+function tempoRenderErro(msg){ document.getElementById('tempoConteudo').innerHTML='<div class="tempo-erro">'+msg+'</div>'; }
+
+function tempoCarregar(lat,lon,info){
+  _tempoLocalAtual={lat,lon,nome:(info&&info.nome)||null,uf:(info&&info.uf)||null};
+  tempoRenderCarregando();
+  const params=[
+    'latitude='+lat,'longitude='+lon,
+    'timezone=auto',
+    'current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure',
+    'hourly=temperature_2m,precipitation_probability,weather_code,is_day',
+    'daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max',
+    'forecast_days=7'
+  ].join('&');
+  const url='https://api.open-meteo.com/v1/forecast?'+params;
+  // se não temos nome, faz geocodificação reversa pelo nome da cidade
+  const nomePromise = (info&&info.nome) ? Promise.resolve(info) : tempoReverseNome(lat,lon);
+  Promise.all([fetch(url).then(r=>r.json()), nomePromise]).then(([dados,nomeInfo])=>{
+    if(nomeInfo){ _tempoLocalAtual.nome=nomeInfo.nome; _tempoLocalAtual.uf=nomeInfo.uf; }
+    tempoRender(dados);
+  }).catch(()=>{ tempoRenderErro('Não foi possível carregar a previsão. Verifique a conexão e tente novamente.'); });
+}
+
+function tempoReverseNome(lat,lon){
+  const url='https://geocoding-api.open-meteo.com/v1/search?latitude='+lat+'&longitude='+lon+'&count=1&language=pt&format=json';
+  return fetch(url).then(r=>r.json()).then(j=>{
+    const c=j&&j.results&&j.results[0];
+    if(c){ return {nome:c.name, uf:c.admin1||''}; }
+    return {nome:'Local selecionado', uf:lat.toFixed(2)+', '+lon.toFixed(2)};
+  }).catch(()=>({nome:'Local selecionado', uf:lat.toFixed(2)+', '+lon.toFixed(2)}));
+}
+
+/* WMO weather codes -> {emoji, desc, classe} */
+function tempoWMO(code,isDay){
+  const dia=isDay!==0;
+  const m={
+    0:[dia?'☀️':'🌙','Céu limpo', dia?'':'noite'],
+    1:[dia?'🌤️':'🌙','Predomínio de sol', dia?'':'noite'],
+    2:[dia?'⛅':'☁️','Parcialmente nublado','nublado'],
+    3:[ '☁️','Nublado','nublado'],
+    45:['🌫️','Névoa','nublado'],48:['🌫️','Névoa gelada','nublado'],
+    51:['🌦️','Garoa fraca','chuva'],53:['🌦️','Garoa','chuva'],55:['🌧️','Garoa forte','chuva'],
+    56:['🌧️','Garoa congelante','chuva'],57:['🌧️','Garoa congelante forte','chuva'],
+    61:['🌦️','Chuva fraca','chuva'],63:['🌧️','Chuva','chuva'],65:['🌧️','Chuva forte','chuva'],
+    66:['🌧️','Chuva congelante','chuva'],67:['🌧️','Chuva congelante forte','chuva'],
+    71:['🌨️','Neve fraca','nublado'],73:['🌨️','Neve','nublado'],75:['❄️','Neve forte','nublado'],77:['❄️','Grãos de neve','nublado'],
+    80:['🌦️','Pancadas fracas','chuva'],81:['🌧️','Pancadas de chuva','chuva'],82:['⛈️','Pancadas fortes','chuva'],
+    85:['🌨️','Pancadas de neve','nublado'],86:['❄️','Pancadas de neve fortes','nublado'],
+    95:['⛈️','Tempestade','tempest'],96:['⛈️','Tempestade c/ granizo','tempest'],99:['⛈️','Tempestade forte c/ granizo','tempest']
+  };
+  return m[code]||['🌡️','—', dia?'':'noite'];
+}
+function tempoVentoDir(g){
+  const dirs=['N','NE','L','SE','S','SO','O','NO'];
+  return dirs[Math.round(((g||0)%360)/45)%8];
+}
+function tempoDiaNome(iso,idx){
+  if(idx===0) return 'Hoje';
+  if(idx===1) return 'Amanhã';
+  const d=new Date(iso+'T12:00:00');
+  return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+}
+
+function tempoRender(d){
+  const cont=document.getElementById('tempoConteudo');
+  if(!d||!d.current){ tempoRenderErro('Dados de previsão indisponíveis para este local.'); return; }
+  const cur=d.current, L0=_tempoLocalAtual||{};
+  const wmo=tempoWMO(cur.weather_code, cur.is_day);
+  const nome=L0.nome||'Local'; const uf=L0.uf?(' · '+L0.uf):'';
+  const agora=new Date(cur.time);
+  const horaStr=agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' • '+agora.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  const nascer=d.daily&&d.daily.sunrise?new Date(d.daily.sunrise[0]).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—';
+  const por=d.daily&&d.daily.sunset?new Date(d.daily.sunset[0]).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—';
+  const uv=d.daily&&d.daily.uv_index_max?Math.round(d.daily.uv_index_max[0]):null;
+
+  // HERO
+  let html='<div class="tempo-hero '+wmo[2]+'">';
+  html+='<div class="tempo-hero-top"><div><div class="tempo-local">📍 '+nome+'<span class="uf2">'+uf+'</span></div><div class="tempo-agora-h">'+horaStr+'</div></div></div>';
+  html+='<div class="tempo-hero-main"><div class="tempo-emoji">'+wmo[0]+'</div>';
+  html+='<div><div class="tempo-temp">'+Math.round(cur.temperature_2m)+'<sup>°C</sup></div></div>';
+  html+='<div style="margin-left:auto;text-align:right"><div class="tempo-desc">'+wmo[1]+'</div><div class="tempo-sens">Sensação '+Math.round(cur.apparent_temperature)+'°</div></div>';
+  html+='</div>';
+  // métricas
+  html+='<div class="tempo-metrics">';
+  html+='<div class="tempo-metric"><div class="mt-lbl">💧 Umidade</div><div class="mt-val">'+Math.round(cur.relative_humidity_2m)+'%</div></div>';
+  html+='<div class="tempo-metric"><div class="mt-lbl">🌬️ Vento</div><div class="mt-val">'+Math.round(cur.wind_speed_10m)+' <span style="font-size:13px">km/h</span></div><div class="mt-sub">'+tempoVentoDir(cur.wind_direction_10m)+'</div></div>';
+  html+='<div class="tempo-metric"><div class="mt-lbl">🌧️ Chuva agora</div><div class="mt-val">'+(cur.precipitation||0)+' <span style="font-size:13px">mm</span></div></div>';
+  html+='<div class="tempo-metric"><div class="mt-lbl">🔵 Pressão</div><div class="mt-val">'+Math.round(cur.surface_pressure||0)+' <span style="font-size:13px">hPa</span></div></div>';
+  html+='<div class="tempo-metric"><div class="mt-lbl">🌅 Nascer</div><div class="mt-val" style="font-size:17px">'+nascer+'</div><div class="mt-sub">Pôr: '+por+'</div></div>';
+  if(uv!==null){ html+='<div class="tempo-metric"><div class="mt-lbl">☀️ UV máx</div><div class="mt-val">'+uv+'</div></div>'; }
+  html+='</div></div>';
+
+  // PRÓXIMAS HORAS (24h a partir de agora)
+  if(d.hourly&&d.hourly.time){
+    const nowIdx=d.hourly.time.findIndex(t=>new Date(t)>=new Date(cur.time.slice(0,13)+':00'));
+    const start=nowIdx<0?0:nowIdx;
+    html+='<div class="tempo-sec-tit">⏱ Próximas horas</div><div class="tempo-horas">';
+    for(let i=start;i<start+24 && i<d.hourly.time.length;i++){
+      const hw=tempoWMO(d.hourly.weather_code[i], d.hourly.is_day[i]);
+      const hh=new Date(d.hourly.time[i]).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const pp=d.hourly.precipitation_probability?d.hourly.precipitation_probability[i]:0;
+      html+='<div class="tempo-hora"><div class="h-hora">'+hh+'</div><div class="h-emoji">'+hw[0]+'</div><div class="h-temp">'+Math.round(d.hourly.temperature_2m[i])+'°</div><div class="h-chuva'+(pp>0?'':' zero')+'">💧'+(pp||0)+'%</div></div>';
+    }
+    html+='</div>';
+  }
+
+  // PRÓXIMOS DIAS
+  if(d.daily&&d.daily.time){
+    html+='<div class="tempo-sec-tit">📅 Próximos dias</div><div class="tempo-dias">';
+    for(let i=0;i<d.daily.time.length;i++){
+      const dw=tempoWMO(d.daily.weather_code[i], 1);
+      const nm=tempoDiaNome(d.daily.time[i], i);
+      const pp=d.daily.precipitation_probability_max?d.daily.precipitation_probability_max[i]:0;
+      const mm=d.daily.precipitation_sum?d.daily.precipitation_sum[i]:0;
+      const chuvaTxt=(pp>0?pp+'%':'0%')+(mm>0?' · '+mm+'mm':'');
+      html+='<div class="tempo-dia"><div class="d-nome">'+nm+'</div><div class="d-emoji">'+dw[0]+'</div><div class="d-chuva'+(pp>0?'':' zero')+'">💧 '+chuvaTxt+'</div><div class="d-temps"><span class="d-max">'+Math.round(d.daily.temperature_2m_max[i])+'°</span><span class="d-min">'+Math.round(d.daily.temperature_2m_min[i])+'°</span></div></div>';
+    }
+    html+='</div>';
+  }
+
+  html+='<div class="tempo-rodape">Dados: Open-Meteo • Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</div>';
+  cont.innerHTML=html;
+}
 
 function showTab(t){
   // proteção: abas restritas só para admin
