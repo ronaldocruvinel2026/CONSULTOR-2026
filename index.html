@@ -1022,7 +1022,6 @@ body.login-aberto{overflow:hidden}
         <div id="cartResumoInfo" style="flex:1"></div>
         <button class="btn ghost" id="cartExportarPdf" type="button">⬇ Exportar PDF</button>
         <button class="btn" id="cartImprimir" type="button" style="background:#1f4a37;color:#fff;border-color:#1f4a37">🖨 Imprimir carteira</button>
-        <button class="btn" id="cartEnviarUnid" type="button" style="background:#1f4a37;color:#fff;border-color:#1f4a37">🖨 Enviar p/ unidade</button>
       </div>
       <div id="cartResumo" class="cart-resumo"></div>
       <div id="cartList" class="mc-list"></div>
@@ -1157,7 +1156,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20261020145223";
+window.APP_VERSION="20261020171730";
 (function(){
   function checarAtualizacao(){
     try{
@@ -3386,95 +3385,108 @@ function montarHtmlRelatorioCarteira(){
     peds.get(pk).itens.push(l);
   });
 
+  // ORDENAÇÃO: clientes A→Z, pedidos por número, produtos por código
+  const clientesOrd=[...clientes.keys()].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+
   const hoje=new Date();
   const dataEmis=String(hoje.getDate()).padStart(2,'0')+'/'+String(hoje.getMonth()+1).padStart(2,'0')+'/'+hoje.getFullYear();
   const elCA=document.getElementById('cartAtualizado');
   const atualizado=(elCA&&elCA.textContent)?elCA.textContent:'';
 
-  let totGeralSaldo=0, totGeralValor=0, nItens=0;
+  let totGeralPed=0, totGeralSaldo=0, totGeralValor=0, nItens=0;
   let corpo='';
 
-  clientes.forEach((peds, cliente)=>{
-    let totCliSaldo=0, totCliValor=0;
+  clientesOrd.forEach(cliente=>{
+    const peds=clientes.get(cliente);
+    let totCliPed=0, totCliSaldo=0, totCliValor=0;
     let blocoPeds='';
-    peds.forEach(ped=>{
-      let totPedSaldo=0, totPedValor=0;
+    const pedsOrd=[...peds.values()].sort((a,b)=>(+a.pedido||0)-(+b.pedido||0));
+    pedsOrd.forEach(ped=>{
+      let totPedPed=0, totPedSaldo=0, totPedValor=0;
       let linhasItens='';
-      ped.itens.forEach(it=>{
+      const itensOrd=ped.itens.slice().sort((a,b)=>String(a.produto_cod||'').localeCompare(String(b.produto_cod||''),'pt-BR',{numeric:true}));
+      itensOrd.forEach(it=>{
+        const qped=+it.qtd_pedida||0;
         const saldo=+it.saldo||0;
         const vu=+it.vlr_unitario||0;
         const total=saldo*vu;
-        totPedSaldo+=saldo; totPedValor+=total; nItens++;
+        totPedPed+=qped; totPedSaldo+=saldo; totPedValor+=total; nItens++;
         linhasItens+=
           '<tr>'+
           '<td class="cod">'+esc(it.produto_cod||'')+'</td>'+
           '<td class="prod">'+esc(it.produto_desc||'—')+'</td>'+
           '<td class="c">'+esc(it.unidade||'')+'</td>'+
           '<td class="r">'+(vu?('R$ '+brl(vu)):'—')+'</td>'+
-          '<td class="r">'+brl(saldo)+'</td>'+
+          '<td class="r">'+brl(qped)+'</td>'+
+          '<td class="r sal">'+brl(saldo)+'</td>'+
           '<td class="r">'+(total?('R$ '+brl(total)):'—')+'</td>'+
           '</tr>';
       });
-      totCliSaldo+=totPedSaldo; totCliValor+=totPedValor;
-      const infoLinha=[
-        ped.propriedade?('Fazenda: '+esc(ped.propriedade)):'',
-        ped.municipio?('Município: '+esc(ped.municipio)):'',
-        ped.empresa?('Empresa: '+esc(ped.empresa)):''
-      ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+      totCliPed+=totPedPed; totCliSaldo+=totPedSaldo; totCliValor+=totPedValor;
+      const info=[
+        ped.propriedade?esc(ped.propriedade):'',
+        ped.municipio?esc(ped.municipio):'',
+        ped.empresa?esc(ped.empresa):''
+      ].filter(Boolean).join(' · ');
       blocoPeds+=
         '<div class="ped-bloco">'+
           '<div class="ped-cab">'+
             '<span class="ped-n">Pedido '+esc(String(ped.pedido))+'</span>'+
-            '<span class="ped-venc">Vencimento: '+_vencBR(ped.vencimento)+'</span>'+
-            '<span class="ped-vend">Vendedor: '+esc(ped.vendedor)+'</span>'+
+            '<span class="ped-x">Venc. '+_vencBR(ped.vencimento)+'</span>'+
+            '<span class="ped-x">'+esc(ped.vendedor)+'</span>'+
+            (info?('<span class="ped-x ped-info">'+info+'</span>'):'')+
           '</div>'+
-          (infoLinha?('<div class="ped-info">'+infoLinha+'</div>'):'')+
-          '<table class="tb-itens"><thead><tr>'+
-            '<th class="cod">Código</th><th class="prod">Produto</th><th class="c">Un</th>'+
-            '<th class="r">Vlr Unit.</th><th class="r">Saldo</th><th class="r">Total</th>'+
-          '</tr></thead><tbody>'+linhasItens+'</tbody>'+
-          '<tfoot><tr><td colspan="4" class="tot-lbl">Total do pedido</td>'+
-            '<td class="r">'+brl(totPedSaldo)+'</td>'+
+          '<table class="tb-itens">'+
+            '<tbody>'+linhasItens+'</tbody>'+
+          '<tfoot><tr><td class="tot-lbl" colspan="4">Total do pedido</td>'+
+            '<td class="r">'+brl(totPedPed)+'</td>'+
+            '<td class="r sal">'+brl(totPedSaldo)+'</td>'+
             '<td class="r">R$ '+brl(totPedValor)+'</td></tr></tfoot>'+
           '</table>'+
         '</div>';
     });
-    totGeralSaldo+=totCliSaldo; totGeralValor+=totCliValor;
+    totGeralPed+=totCliPed; totGeralSaldo+=totCliSaldo; totGeralValor+=totCliValor;
     corpo+=
       '<div class="cli-bloco">'+
-        '<div class="cli-cab">'+esc(cliente)+'</div>'+
+        '<div class="cli-cab">'+esc(cliente)+
+          '<span class="cli-cab-tot">Pedido '+brl(totCliPed)+' · Saldo '+brl(totCliSaldo)+' · R$ '+brl(totCliValor)+'</span>'+
+        '</div>'+
+        '<table class="tb-itens tb-head"><thead><tr>'+
+          '<th class="cod">Cód.</th><th class="prod">Produto</th><th class="c">Un</th>'+
+          '<th class="r">Vlr Unit.</th><th class="r">Pedido</th><th class="r">Saldo</th><th class="r">Total</th>'+
+        '</tr></thead></table>'+
         blocoPeds+
-        '<div class="cli-total">Total do cliente: &nbsp; Saldo <b>'+brl(totCliSaldo)+'</b> &nbsp;·&nbsp; <b>R$ '+brl(totCliValor)+'</b></div>'+
       '</div>';
   });
 
   const estilos=
     '*{box-sizing:border-box;margin:0;padding:0}'+
-    'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:16px;font-size:12px}'+
-    '.cab-rel{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0a5a2e;padding-bottom:8px;margin-bottom:4px}'+
-    '.cab-rel .tit{font-size:18px;font-weight:800;color:#0a5a2e;letter-spacing:.3px}'+
-    '.cab-rel .sub{font-size:12px;color:#444;margin-top:2px}'+
-    '.cab-rel .dir{text-align:right;font-size:12px;color:#444}'+
+    'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:10px 12px;font-size:10px}'+
+    '.cab-rel{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #0a5a2e;padding-bottom:5px;margin-bottom:6px}'+
+    '.cab-rel .tit{font-size:15px;font-weight:800;color:#0a5a2e}'+
+    '.cab-rel .sub{font-size:10px;color:#555;margin-top:1px}'+
+    '.cab-rel .dir{text-align:right;font-size:10px;color:#555}'+
     '.cab-rel .dir b{color:#0a5a2e}'+
-    '.cli-bloco{margin-top:14px;break-inside:avoid}'+
-    '.cli-cab{background:#0a5a2e;color:#fff;font-weight:800;font-size:14px;padding:7px 10px;border-radius:6px 6px 0 0}'+
-    '.ped-bloco{border:1px solid #d8e0d8;border-top:none;padding:8px 10px}'+
-    '.ped-cab{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;margin-bottom:3px}'+
-    '.ped-n{font-weight:800;color:#0a5a2e;font-size:13px}'+
-    '.ped-venc,.ped-vend{font-size:11.5px;color:#333}'+
-    '.ped-info{font-size:11px;color:#666;margin-bottom:6px}'+
-    'table.tb-itens{width:100%;border-collapse:collapse;margin-bottom:4px}'+
-    '.tb-itens th{background:#eef3ee;color:#1a3a28;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;padding:4px 6px;text-align:left;border-bottom:1.5px solid #cdd8cd}'+
-    '.tb-itens td{padding:4px 6px;border-bottom:1px solid #eef1ee;font-size:11.5px}'+
-    '.tb-itens .cod{width:60px;color:#777;font-size:10.5px}'+
-    '.tb-itens .prod{font-weight:600}'+
-    '.tb-itens .c{text-align:center;width:36px}'+
-    '.tb-itens .r{text-align:right;white-space:nowrap}'+
-    '.tb-itens tfoot td{font-weight:800;color:#0a5a2e;border-top:2px solid #0a5a2e;border-bottom:none;font-size:11.5px;padding-top:5px}'+
+    '.cli-bloco{margin-top:8px;break-inside:avoid;page-break-inside:avoid}'+
+    '.cli-cab{background:#0a5a2e;color:#fff;font-weight:800;font-size:11.5px;padding:4px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}'+
+    '.cli-cab-tot{font-size:10px;font-weight:700;opacity:.95;white-space:nowrap}'+
+    '.ped-bloco{border:1px solid #d8e0d8;border-top:none}'+
+    '.ped-cab{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;padding:3px 8px;background:#f3f7f3;border-bottom:1px solid #e4ebe4}'+
+    '.ped-n{font-weight:800;color:#0a5a2e;font-size:10.5px}'+
+    '.ped-x{font-size:9.5px;color:#444}'+
+    '.ped-info{color:#777}'+
+    'table.tb-itens{width:100%;border-collapse:collapse;table-layout:fixed}'+
+    '.tb-head th{background:#e7efe7;color:#1a3a28;font-size:9px;text-transform:uppercase;letter-spacing:.2px;padding:3px 8px;text-align:left;border-bottom:1.5px solid #cdd8cd}'+
+    '.tb-itens td{padding:2px 8px;border-bottom:1px solid #f0f3f0;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'+
+    '.tb-itens .cod{width:8%;color:#888;font-size:9px}'+
+    '.tb-itens .prod{width:40%;font-weight:600}'+
+    '.tb-itens .c{width:5%;text-align:center}'+
+    '.tb-itens .r{text-align:right;width:12%}'+
+    '.tb-itens .sal{font-weight:700;color:#0a5a2e}'+
+    '.tb-itens tfoot td{font-weight:800;color:#0a5a2e;border-top:1.5px solid #0a5a2e;border-bottom:none;font-size:10px;padding:3px 8px}'+
     '.tb-itens .tot-lbl{text-align:right}'+
-    '.cli-total{background:#f3f7f3;border:1px solid #d8e0d8;border-top:none;border-radius:0 0 6px 6px;padding:7px 10px;text-align:right;font-size:12.5px;color:#1a3a28}'+
-    '.rodape-rel{margin-top:16px;border-top:2px solid #0a5a2e;padding-top:8px;display:flex;justify-content:space-between;font-size:13px;font-weight:800;color:#0a5a2e}'+
-    '@media print{body{padding:0}.pl-barra{display:none!important}}';
+    '.rodape-rel{margin-top:10px;border-top:2px solid #0a5a2e;padding-top:5px;display:flex;justify-content:space-between;font-size:11px;font-weight:800;color:#0a5a2e}'+
+    '@media print{body{padding:0}.pl-barra{display:none!important}@page{margin:8mm}}';
 
   const barra=
     '<div class="pl-barra" style="position:sticky;top:0;background:#0a5a2e;padding:10px;text-align:center;z-index:9;display:flex;gap:10px;justify-content:center">'+
@@ -3485,14 +3497,14 @@ function montarHtmlRelatorioCarteira(){
   const cabecalho=
     '<div class="cab-rel">'+
       '<div><div class="tit">Carteira de Pedidos — Setec Agro</div>'+
-      '<div class="sub">Relatório analítico por cliente'+(atualizado?(' &nbsp;·&nbsp; '+esc(atualizado)):'')+'</div></div>'+
-      '<div class="dir">Emitido em <b>'+dataEmis+'</b><br>'+nItens+' item(ns)</div>'+
+      '<div class="sub">Relatório analítico por cliente'+(atualizado?(' · '+esc(atualizado)):'')+'</div></div>'+
+      '<div class="dir">Emitido em <b>'+dataEmis+'</b><br>'+nItens+' item(ns) · '+clientesOrd.length+' cliente(s)</div>'+
     '</div>';
 
   const rodape=
     '<div class="rodape-rel">'+
-      '<span>'+nItens+' item(ns) · '+clientes.size+' cliente(s)</span>'+
-      '<span>Saldo total: '+brl(totGeralSaldo)+' &nbsp;·&nbsp; R$ '+brl(totGeralValor)+'</span>'+
+      '<span>'+nItens+' item(ns) · '+clientesOrd.length+' cliente(s)</span>'+
+      '<span>Total geral — Pedido '+brl(totGeralPed)+' · Saldo '+brl(totGeralSaldo)+' · R$ '+brl(totGeralValor)+'</span>'+
     '</div>';
 
   return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">'+
@@ -3898,12 +3910,6 @@ function nomeLojaCod(cod){
 document.getElementById('cartBusca').oninput=e=>{ cartBusca=e.target.value; renderCarteira(); };
 (function(){ const b=document.getElementById('cartExportarPdf'); if(b) b.onclick=exportarCarteiraPdf; })();
 (function(){ const b=document.getElementById('cartImprimir'); if(b) b.onclick=imprimirRelatorioCarteira; })();
-(function(){ const b=document.getElementById('cartEnviarUnid'); if(b) b.onclick=()=>{
-  const html=montarHtmlRelatorioCarteira();
-  if(!html){ alert('Não há itens na tela para enviar.'); return; }
-  const n=(cartLinhasFiltradas||[]).length;
-  abrirModalUnidade('faturamento', {html:html, titulo:'Carteira de Pedidos ('+n+' itens)'});
-}; })();
 
 /* ---- seleção múltipla de clientes na carteira ---- */
 // lista de clientes disponíveis, respeitando vendedor/empresa (não filtra por situação nem por cliente já marcado)
