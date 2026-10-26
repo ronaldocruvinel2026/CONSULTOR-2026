@@ -1156,7 +1156,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20261020173125";
+window.APP_VERSION="20261026162918";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1260,6 +1260,10 @@ try{ if(window.supabase&&window.supabase.createClient){ sb=window.supabase.creat
 let usuario=null;      // {id, email, nome}
 let ehAdmin=false;
 let meuPapel='consultor';   // 'admin' | 'gerente' | 'consultor'
+let meuPrazoEstendido=false; // consultor autorizado a usar prazo estendido
+// Prazo estendido (só para autorizados): cotação/pedido até 30/08/2027; lista de preços até 20/08/2027
+const PRAZO_EST_COT={ano:2027, mes:8, dia:30};   // teto de cotação/pedido
+const PRAZO_EST_LISTA='20/08/2027';               // data máxima da lista impressa
 let meuGerenteId=null;      // se consultor, id do gerente
 let equipeVendedores=null;  // se gerente, Set com nomes de vendedor da equipe (normalizados)
 let meuLoja=LOJA_PADRAO;    // loja/filial do usuário logado
@@ -1348,12 +1352,20 @@ function margemGrupoV(grupo){
 }
 function campanhaPorId(id){ return CAMPANHAS.find(c=>c.id===id)||null; }
 // teto de pagamento (ano,mês) a partir do venc_max da campanha; null se não definido
+// Consultor autorizado (prazo estendido) alcança no mínimo 30/08/2027.
 function tetoPagamento(campId){
   const c=campanhaPorId(campId);
-  if(!c||!c.venc_max) return null;
-  const dv=vencToDate(c.venc_max);
-  if(!dv) return null;
-  return {ano:dv.getFullYear(), mes:dv.getMonth()+1};
+  let teto=null;
+  if(c&&c.venc_max){
+    const dv=vencToDate(c.venc_max);
+    if(dv) teto={ano:dv.getFullYear(), mes:dv.getMonth()+1};
+  }
+  // autorizado: garante o alcance do prazo estendido (o maior entre os dois)
+  if(meuPrazoEstendido || ehAdmin){
+    const est={ano:PRAZO_EST_COT.ano, mes:PRAZO_EST_COT.mes};
+    if(!teto || (est.ano*12+est.mes) > (teto.ano*12+teto.mes)) teto=est;
+  }
+  return teto;
 }
 // venc "dd/mm/aaaa" ou "mm/aaaa" -> Date (dia 30 se sem dia)
 function vencToDate(venc){
@@ -1614,10 +1626,19 @@ function filtered(){
   return r;
 }
 // ===== IMPRIMIR LISTA DE PREÇOS =====
+function _dateToInput(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function abrirModalImprimirLista(){
   const camp=campanhaPorId(campanhaSel);
   if(!camp){ alert('Selecione uma campanha primeiro.'); return; }
   const fabs=[...new Set((camp.itens||[]).map(i=>i.fab).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt'));
+  // prazo: padrão = venc_max da campanha. Autorizado pode ir até 20/08/2027.
+  const dvCamp=vencToDate(camp.venc_max||'');
+  const dvEst=vencToDate(PRAZO_EST_LISTA);
+  const podeEstender=(meuPrazoEstendido||ehAdmin);
+  const dvTetoLista= podeEstender ? (dvEst||dvCamp) : dvCamp;  // data máxima permitida
+  const dvInicial= dvCamp||dvTetoLista;                         // sugestão inicial = prazo da campanha
+  const maxAttr= dvTetoLista ? _dateToInput(dvTetoLista) : '';
+  const minAttr= _dateToInput(new Date());
   let bg=document.getElementById('imprListaBg'); if(bg) bg.remove();
   bg=document.createElement('div');
   bg.id='imprListaBg';
@@ -1632,11 +1653,14 @@ function abrirModalImprimirLista(){
       '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Fabricante</label>'+
       '<select id="imprFab" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:14px">'+optsFab+'</select>'+
       '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Ordenar por</label>'+
-      '<select id="imprOrd" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:18px">'+
+      '<select id="imprOrd" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:14px">'+
         '<option value="ia">Princípio Ativo</option>'+
         '<option value="prod">Produto (A-Z)</option>'+
         '<option value="fab">Fabricante</option>'+
       '</select>'+
+      '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Prazo (2ª coluna de preço)</label>'+
+      '<input id="imprPrazo" type="date" value="'+esc(_dateToInput(dvInicial))+'"'+(maxAttr?(' max="'+maxAttr+'"'):'')+(minAttr?(' min="'+minAttr+'"'):'')+' style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:6px">'+
+      '<p style="color:var(--muted);font-size:12px;margin-bottom:18px">'+(podeEstender?('Você pode estender até '+esc(PRAZO_EST_LISTA)+'.'):('Limitado ao prazo da campanha'+(dvCamp?(' ('+esc(camp.venc_max)+')'):'')+'.'))+'</p>'+
       '<div style="display:flex;gap:10px">'+
         '<button class="btn ghost" id="imprCancel" style="flex:1">Cancelar</button>'+
         '<button class="btn" id="imprOk" style="flex:1;background:var(--leaf);color:#fff;border-color:var(--leaf)">Gerar impressão</button>'+
@@ -1647,13 +1671,25 @@ function abrirModalImprimirLista(){
   document.getElementById('imprOk').onclick=()=>{
     const fab=document.getElementById('imprFab').value;
     const ord=document.getElementById('imprOrd').value;
+    const prazoStr=(document.getElementById('imprPrazo').value||'').trim();
+    let dvEscolhido=null;
+    if(prazoStr){
+      const pm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(prazoStr);
+      if(pm) dvEscolhido=new Date(+pm[1],+pm[2]-1,+pm[3]);
+    }
+    // valida contra o teto permitido para este usuário
+    if(dvEscolhido && dvTetoLista && dvEscolhido>dvTetoLista){
+      alert('O prazo escolhido ('+String(dvEscolhido.getDate()).padStart(2,'0')+'/'+String(dvEscolhido.getMonth()+1).padStart(2,'0')+'/'+dvEscolhido.getFullYear()+') passa do máximo permitido ('+_dateToInput(dvTetoLista).split('-').reverse().join('/')+'). '+(podeEstender?'':'Você não tem autorização para prazo estendido.'));
+      return;
+    }
     bg.remove();
-    gerarImpressaoLista(camp, fab, ord);
+    gerarImpressaoLista(camp, fab, ord, dvEscolhido);
   };
 }
-function gerarImpressaoLista(camp, fabEscolhido, ord){
+function gerarImpressaoLista(camp, fabEscolhido, ord, dvPrazo){
   const hoje=new Date();
-  const dvMax=vencToDate(camp.venc_max||'');
+  // 2ª coluna usa o prazo escolhido no modal; se não veio, cai no venc_max da campanha
+  const dvMax=dvPrazo||vencToDate(camp.venc_max||'');
   const precoEm=(it,data)=>precoCampanhaItem(it, data);
   let itens=(camp.itens||[]).slice();
   if(fabEscolhido!=='__TODOS__' && fabEscolhido!=='__SEPARADO__'){
@@ -2108,7 +2144,7 @@ async function aoLogar(user){
   meuGerenteId=null;
   if(sbOk){
     try{
-      const {data:perf}=await sb.from('perfis').select('papel,gerente_id,nome,loja,vendedor_siagri').eq('id',user.id).maybeSingle();
+      const {data:perf}=await sb.from('perfis').select('papel,gerente_id,nome,loja,vendedor_siagri,prazo_estendido').eq('id',user.id).maybeSingle();
       if(perf){
         meuPapel=perf.papel||meuPapel;
         // o papel "admin" definido no painel de usuários concede acesso de administrador
@@ -2116,6 +2152,7 @@ async function aoLogar(user){
         meuGerenteId=perf.gerente_id||null;
         meuLoja=perf.loja||LOJA_PADRAO;
         meuVendedorSiagri=perf.vendedor_siagri||null;
+        meuPrazoEstendido=!!perf.prazo_estendido;
         if(perf.nome) usuario.nome=perf.nome;
       }
       // se for gerente, carregar os vendedores da equipe (consultores com gerente_id = ele)
@@ -3127,6 +3164,7 @@ async function renderUsuarios(){
           Object.keys(LOJAS).map(k=>'<option value="'+k+'"'+((p.loja||LOJA_PADRAO)===k?' selected':'')+'>'+esc(LOJAS[k].nome)+'</option>').join('')+
         '</select></div>'+
         '<div class="usr-field"><label>Vendedor no SIAGRI</label><input class="usr-siagri" data-id="'+p.id+'" type="text" value="'+esc(p.vendedor_siagri||'')+'" placeholder="Nome exato do SIAGRI"></div>'+
+        '<div class="usr-field"><label>Prazo estendido</label><label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;padding:6px 0"><input class="usr-prazoest" data-id="'+p.id+'" type="checkbox"'+(p.prazo_estendido?' checked':'')+' style="width:18px;height:18px;cursor:pointer"> Autorizado (até 20/08)</label></div>'+
       '</div>'+
       (semCarteira?'<div class="usr-aviso">⚠ Consultor sem gerente designado</div>':'')+
     '</div>';
@@ -3163,6 +3201,10 @@ async function renderUsuarios(){
   list.querySelectorAll('.usr-siagri').forEach(inp=>{
     inp.onchange=async ()=>{ await salvarPerfil(inp.dataset.id, {vendedor_siagri: (inp.value||'').trim()||null}); };
     inp.onkeydown=e=>{ if(e.key==='Enter') inp.blur(); };
+  });
+  // autorizar prazo estendido
+  list.querySelectorAll('.usr-prazoest').forEach(chk=>{
+    chk.onchange=async ()=>{ await salvarPerfil(chk.dataset.id, {prazo_estendido: chk.checked}); };
   });
   // redefinir senha (envia email de recuperação)
   list.querySelectorAll('[data-resetsenha]').forEach(b=>b.onclick=async ()=>{
