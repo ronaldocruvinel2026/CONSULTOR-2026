@@ -1156,7 +1156,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20261026162918";
+window.APP_VERSION="20261026164633";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2419,6 +2419,7 @@ function coletarDadosCotacao(){
 /* salvar cotação */
 document.getElementById('cotSalvar').onclick=async ()=>{
   if(!usuario){ abrirLogin(); return; }
+  if(!campanhaSelCot){ alert('Selecione a campanha.'); return; }
   const cliente=document.getElementById('cotCliente').value.trim();
   if(!cliente){ alert('Informe o nome do cliente.'); return; }
   if(!cotItens.length){ alert('Adicione pelo menos um produto.'); return; }
