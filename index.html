@@ -126,7 +126,13 @@ footer{border-top:1px solid var(--line);padding:20px 0;text-align:center;font-si
 .ci-del{flex-shrink:0;background:none;border:0;color:var(--danger);font-size:18px;cursor:pointer;padding:2px 8px;border-radius:6px;line-height:1}
 .ci-del:hover{background:#fbe6e0}
 .ci-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ci-obs{margin-top:10px}
+.ci-qtd-full{margin-bottom:12px}
+.ci-qtd-full .qtd-input{font-size:17px}
+.ci-grid{margin-bottom:12px}
+.ci-sub-full{background:var(--leaf-soft);border-radius:10px;padding:10px 12px;flex-direction:row;align-items:center;justify-content:space-between}
+.ci-sub-full label{margin:0}
+.ci-sub-full .ci-sub{padding:0;font-size:18px}
+.ci-obs{margin-top:12px}
 .ci-obs label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
 .obs-input{width:100%;padding:8px 10px;border:1.5px dashed var(--line);border-radius:8px;font-size:13px;outline:none;font-family:inherit;background:#fff;box-sizing:border-box}
 .obs-input:focus{border-style:solid;border-color:var(--leaf);background:var(--leaf-soft)}
@@ -1175,7 +1181,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20261104080450";
+window.APP_VERSION="20261104170236";
 (function(){
   function checarAtualizacao(){
     try{
@@ -2042,16 +2048,16 @@ function renderCot(){
     return '<div class="ci-card'+(manual?' ci-manual':'')+'">'+
       '<div class="ci-head">'+cab+
         '<button class="ci-del" data-idx="'+idx+'" title="Remover">✕</button></div>'+
+      '<div class="ci-field ci-qtd-full"><label>Quantidade</label><div class="qtd-wrap"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(it.qtd!==''&&it.qtd!=null?String(it.qtd).replace('.',','):'')+'" placeholder="0">'+
+        (manual
+          ? '<select class="unid-sel" data-idx="'+idx+'">'+['LT','KG','BLS','BAG','SC','CT','UN'].map(u=>'<option value="'+u+'"'+(unidItem===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'
+          : '<span class="unid-fixa">'+esc(unidItem)+'</span>')+
+      '</div></div>'+
       '<div class="ci-grid">'+
-        '<div class="ci-field"><label>Quantidade</label><div class="qtd-wrap"><input class="qtd-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(it.qtd!==''&&it.qtd!=null?String(it.qtd).replace('.',','):'')+'" placeholder="0">'+
-          (manual
-            ? '<select class="unid-sel" data-idx="'+idx+'">'+['LT','KG','BLS','BAG','SC','CT','UN'].map(u=>'<option value="'+u+'"'+(unidItem===u?' selected':'')+'>'+u+'</option>').join('')+'</select>'
-            : '<span class="unid-fixa">'+esc(unidItem)+'</span>')+
-        '</div></div>'+
-        '<div class="ci-field"><label>Preço sugerido</label><div class="ci-sug">'+(sug?('R$ '+brl(sug)):'—')+'</div></div>'+
         '<div class="ci-field"><label>Preço cotação</label><input class="cot-preco-input" data-idx="'+idx+'" type="text" inputmode="decimal" value="'+(precoCot!=null?brl(precoCot):'')+'" placeholder="Digite o preço"></div>'+
-        '<div class="ci-field"><label>Subtotal</label><div class="ci-sub">'+(sub?('R$ '+brl(sub)):'—')+'</div></div>'+
+        '<div class="ci-field"><label>Preço sugerido</label><div class="ci-sug">'+(sug?('R$ '+brl(sug)):'—')+'</div></div>'+
       '</div>'+
+      '<div class="ci-field ci-sub-full"><label>Subtotal</label><div class="ci-sub">'+(sub?('R$ '+brl(sub)):'—')+'</div></div>'+
       '<div class="ci-obs"><label>Observação (opcional — aparece no pedido)</label><input class="obs-input" data-idx="'+idx+'" type="text" value="'+esc(it.obs||'')+'" placeholder="Ex: entrega parcial, bonificação, prazo especial..."></div>'+
       '</div>';
   }).join('');
