@@ -1156,7 +1156,7 @@ body.login-aberto{overflow:hidden}
 
 <script>
 /* ===== Controle de versão / auto-atualização (PWA e navegador) ===== */
-window.APP_VERSION="20261026164633";
+window.APP_VERSION="20261104075347";
 (function(){
   function checarAtualizacao(){
     try{
@@ -1658,9 +1658,12 @@ function abrirModalImprimirLista(){
         '<option value="prod">Produto (A-Z)</option>'+
         '<option value="fab">Fabricante</option>'+
       '</select>'+
-      '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Prazo (2ª coluna de preço)</label>'+
-      '<input id="imprPrazo" type="date" value="'+esc(_dateToInput(dvInicial))+'"'+(maxAttr?(' max="'+maxAttr+'"'):'')+(minAttr?(' min="'+minAttr+'"'):'')+' style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;margin-bottom:6px">'+
-      '<p style="color:var(--muted);font-size:12px;margin-bottom:18px">'+(podeEstender?('Você pode estender até '+esc(PRAZO_EST_LISTA)+'.'):('Limitado ao prazo da campanha'+(dvCamp?(' ('+esc(camp.venc_max)+')'):'')+'.'))+'</p>'+
+      '<label style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">Colunas de prazo na lista</label>'+
+      '<label style="display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;cursor:pointer;padding:7px 0"><input id="imprP0420" type="checkbox" checked style="width:18px;height:18px;cursor:pointer"> Incluir 20/04/2027</label>'+
+      (podeEstender
+        ? '<label style="display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;cursor:pointer;padding:7px 0"><input id="imprP0820" type="checkbox" style="width:18px;height:18px;cursor:pointer"> Incluir 20/08/2027</label>'
+        : '<p style="color:var(--muted);font-size:12px;padding:4px 0">A coluna 20/08/2027 é exclusiva para consultores autorizados.</p>')+
+      '<p style="color:var(--muted);font-size:12px;margin:6px 0 18px">A coluna "À vista" sai sempre. Marque os prazos que quiser mostrar.</p>'+
       '<div style="display:flex;gap:10px">'+
         '<button class="btn ghost" id="imprCancel" style="flex:1">Cancelar</button>'+
         '<button class="btn" id="imprOk" style="flex:1;background:var(--leaf);color:#fff;border-color:var(--leaf)">Gerar impressão</button>'+
@@ -1671,25 +1674,24 @@ function abrirModalImprimirLista(){
   document.getElementById('imprOk').onclick=()=>{
     const fab=document.getElementById('imprFab').value;
     const ord=document.getElementById('imprOrd').value;
-    const prazoStr=(document.getElementById('imprPrazo').value||'').trim();
-    let dvEscolhido=null;
-    if(prazoStr){
-      const pm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(prazoStr);
-      if(pm) dvEscolhido=new Date(+pm[1],+pm[2]-1,+pm[3]);
-    }
-    // valida contra o teto permitido para este usuário
-    if(dvEscolhido && dvTetoLista && dvEscolhido>dvTetoLista){
-      alert('O prazo escolhido ('+String(dvEscolhido.getDate()).padStart(2,'0')+'/'+String(dvEscolhido.getMonth()+1).padStart(2,'0')+'/'+dvEscolhido.getFullYear()+') passa do máximo permitido ('+_dateToInput(dvTetoLista).split('-').reverse().join('/')+'). '+(podeEstender?'':'Você não tem autorização para prazo estendido.'));
-      return;
-    }
+    // prazos marcados (À vista é sempre); 20/08 só se autorizado
+    const prazos=[];
+    const c0420=document.getElementById('imprP0420');
+    const c0820=document.getElementById('imprP0820');
+    if(c0420 && c0420.checked) prazos.push({rotulo:'20/04/2027', data:vencToDate('20/04/2027')});
+    if(podeEstender && c0820 && c0820.checked) prazos.push({rotulo:'20/08/2027', data:vencToDate('20/08/2027')});
+    if(!prazos.length){ alert('Marque pelo menos uma coluna de prazo (20/04 ou 20/08).'); return; }
     bg.remove();
-    gerarImpressaoLista(camp, fab, ord, dvEscolhido);
+    gerarImpressaoLista(camp, fab, ord, prazos);
   };
 }
 function gerarImpressaoLista(camp, fabEscolhido, ord, dvPrazo){
   const hoje=new Date();
-  // 2ª coluna usa o prazo escolhido no modal; se não veio, cai no venc_max da campanha
-  const dvMax=dvPrazo||vencToDate(camp.venc_max||'');
+  // colunas de prazo: array {rotulo, data}. Compatível com chamada antiga (Date única).
+  let prazos=[];
+  if(Array.isArray(dvPrazo)) prazos=dvPrazo.filter(p=>p&&p.data);
+  else if(dvPrazo instanceof Date) prazos=[{rotulo:null, data:dvPrazo}];
+  if(!prazos.length){ const d=vencToDate(camp.venc_max||''); if(d) prazos=[{rotulo:null, data:d}]; }
   const precoEm=(it,data)=>precoCampanhaItem(it, data);
   let itens=(camp.itens||[]).slice();
   if(fabEscolhido!=='__TODOS__' && fabEscolhido!=='__SEPARADO__'){
@@ -1701,24 +1703,26 @@ function gerarImpressaoLista(camp, fabEscolhido, ord, dvPrazo){
     return ((a.ia||'')+(a.prod||'')).localeCompare((b.ia||'')+(b.prod||''),'pt');
   });
   const fmtData=(d)=>{ if(!d) return ''; const dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0'); return dd+'/'+mm+'/'+d.getFullYear(); };
-  const colVenc = dvMax ? fmtData(dvMax) : 'Prazo';
+  const colsPrazo=prazos.map(p=>({ titulo:(p.rotulo||fmtData(p.data)||'Prazo'), data:p.data }));
   const safra = camp.nome || 'SAFRA 26/27';
   function tabela(lista){
     ordenar(lista);
     const linhas=lista.map(it=>{
       const pv=precoEm(it, hoje);
-      const pp=precoEm(it, dvMax||hoje);
+      let celulas='';
+      colsPrazo.forEach(c=>{ const pp=precoEm(it, c.data||hoje); celulas+='<td class="pl-preco">'+(pp?('R$ '+brl(pp)):'—')+'</td>'; });
       return '<tr>'+
         '<td>'+esc(it.fab||'—')+'</td>'+
         '<td class="pl-prod">'+esc(it.prod||'—')+'</td>'+
         '<td class="pl-ia">'+esc(it.ia||'')+'</td>'+
         '<td class="pl-preco">'+(pv?('R$ '+brl(pv)):'—')+'</td>'+
-        '<td class="pl-preco">'+(pp?('R$ '+brl(pp)):'—')+'</td>'+
+        celulas+
       '</tr>';
     }).join('');
+    let thsPrazo=''; colsPrazo.forEach(c=>{ thsPrazo+='<th class="pl-preco">'+esc(c.titulo)+'</th>'; });
     return '<table class="pl-tbl"><thead><tr>'+
       '<th>Fornecedor</th><th>Produto</th><th>Princípio Ativo</th>'+
-      '<th class="pl-preco">À VISTA</th><th class="pl-preco">'+esc(colVenc)+'</th>'+
+      '<th class="pl-preco">À VISTA</th>'+thsPrazo+
       '</tr></thead><tbody>'+linhas+'</tbody></table>';
   }
   let corpo='';
@@ -3880,12 +3884,12 @@ async function gerarPdfFaturamento(){
         const qs=fatQtd[l._selId]!=null?fatQtd[l._selId]:(+l.saldo||0);
         // marca a 1a linha de cada cliente para desenhar a borda de separação
         const cls=primeiraDoCliente?' class="fat-grp-ini"':'';
-        const cliCel=primeiraDoCliente?('<td class="fat-cli-cel">'+esc(ck)+'</td>'):'<td></td>';
         primeiraDoCliente=false;
         return '<tr'+cls+'>'+
-          cliCel+
-          '<td class="c">'+(idx===0?esc(String(pk)):'')+'</td>'+
-          '<td>'+(idx===0?esc(emp):'')+'</td>'+
+          '<td class="fat-cli-cel">'+esc(ck)+'</td>'+
+          '<td class="c">'+esc(String(pk))+'</td>'+
+          '<td>'+esc(l.propriedade||'')+'</td>'+
+          '<td>'+esc(emp)+'</td>'+
           '<td>'+esc(l.produto_desc||'')+'</td>'+
           '<td class="c">'+esc(l.unidade||'')+'</td>'+
           '<td class="r">'+brl(+l.saldo||0)+'</td>'+
@@ -3899,7 +3903,7 @@ async function gerarPdfFaturamento(){
   // linhas em branco: conta cabeçalhos de cliente ocupando espaço
   const nLinhasUsadas=nItens;
   const minL=12; let vazias='';
-  for(let k=nLinhasUsadas;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'; }
+  for(let k=nLinhasUsadas;k<minL;k++){ vazias+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'; }
   const clienteCad = clientesUnicos.length===1 ? clientesUnicos[0] : (clientesUnicos.length+' clientes');
   const doc=
     '<div class="ped-doc" id="fatDoc">'+
@@ -3908,7 +3912,7 @@ async function gerarPdfFaturamento(){
       '<div class="fat-titcol"><div class="fat-titulo">SOLICITAÇÃO DE FATURAMENTO</div></div>'+
       '<div class="fat-data">Data: '+dataStr+(consultor?('<br>Consultor: '+esc(consultor)):'')+'<br>Itens: '+nItens+'</div>'+
     '</div>'+
-    '<div class="itens-wrap"><table class="itens"><thead><tr><th>Cliente</th><th>Pedido</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
+    '<div class="itens-wrap"><table class="itens"><thead><tr><th>Cliente</th><th>Pedido</th><th>Fazenda</th><th>Empresa</th><th>Produto</th><th>Unid.</th><th>Saldo</th><th>Qtd. a faturar</th></tr></thead><tbody>'+linhasTbl+vazias+'</tbody></table></div>'+
     '<div class="obs">Solicito o faturamento dos itens acima relacionados, conforme as quantidades indicadas na coluna "Qtd. a faturar". Documento gerado pelo sistema de cotações Setec Agro.'+
       '<div class="assin">Assinatura do Consultor</div></div>'+
     '</div>';
